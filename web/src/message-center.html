@@ -16,10 +16,19 @@
     <h1>消息中心（MVP）</h1>
     <p class="muted">已联调 API：/v1/messages、/v1/push/trigger</p>
     <button id="trigger">触发一条测试推送</button>
+    <button id="refreshFeed" style="margin-left:8px;background:#2f9e44">刷新资讯Feed</button>
+    <div id="feed" style="margin-top:16px"></div>
     <div id="list" style="margin-top:16px"></div>
 
     <script>
       const listEl = document.getElementById('list');
+      const feedEl = document.getElementById('feed');
+      async function loadFeed() {
+        const res = await fetch('http://127.0.0.1:8787/v1/feed?refresh=1');
+        const data = await res.json();
+        const items = data.items || [];
+        feedEl.innerHTML = `<div class="muted">资讯 Feed（${items.length}）</div>` + items.map(i => `<div class="card"><div>${i.title}</div><div class="muted">score: ${i.score ?? '-'} | ${i.source}</div></div>`).join('');
+      }
       async function load() {
         const res = await fetch('http://127.0.0.1:8787/v1/messages');
         const data = await res.json();
@@ -34,7 +43,9 @@
         await fetch('http://127.0.0.1:8787/v1/push/trigger', { method: 'POST' });
         await load();
       });
+      document.getElementById('refreshFeed').addEventListener('click', loadFeed);
       load();
+      loadFeed();
     </script>
   </body>
 </html>
