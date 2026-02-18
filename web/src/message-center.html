@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Info Push - 消息中心 MVP</title>
+    <style>
+      body { font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif; margin: 24px; background:#0b1020; color:#eaf0ff; }
+      .card { background:#111936; border:1px solid #25345f; border-radius:12px; padding:16px; margin-bottom:12px; }
+      .muted { color:#9fb0df; font-size: 13px; }
+      button { background:#4f7cff; color:white; border:none; border-radius:8px; padding:8px 12px; cursor:pointer; }
+      h1 { margin-top:0; }
+    </style>
+  </head>
+  <body>
+    <h1>消息中心（MVP）</h1>
+    <p class="muted">已联调 API：/v1/messages、/v1/push/trigger</p>
+    <button id="trigger">触发一条测试推送</button>
+    <div id="list" style="margin-top:16px"></div>
+
+    <script>
+      const listEl = document.getElementById('list');
+      async function load() {
+        const res = await fetch('http://127.0.0.1:8787/v1/messages');
+        const data = await res.json();
+        const items = data.items || [];
+        if (!items.length) {
+          listEl.innerHTML = '<div class="card"><div>暂无消息</div><div class="muted">点击上方按钮生成测试消息</div></div>';
+          return;
+        }
+        listEl.innerHTML = items.map(i => `<div class="card"><div>${i.title}</div><div class="muted">${i.body || ''}</div><div class="muted">${i.createdAt}</div></div>`).join('');
+      }
+      document.getElementById('trigger').addEventListener('click', async () => {
+        await fetch('http://127.0.0.1:8787/v1/push/trigger', { method: 'POST' });
+        await load();
+      });
+      load();
+    </script>
+  </body>
+</html>
