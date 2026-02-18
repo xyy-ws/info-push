@@ -25,10 +25,19 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/v1/feed') {
     const topic = url.searchParams.get('topic') || preferences.topics?.[0] || 'ai';
+    const limitRaw = Number(url.searchParams.get('limit') || '20');
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(100, Math.floor(limitRaw)) : 20;
+
     if (url.searchParams.get('refresh') === '1') {
       feed = ingestAndRank(topic);
     }
-    return json(res, 200, { items: feed, topic });
+
+    return json(res, 200, {
+      items: feed.slice(0, limit),
+      topic,
+      limit,
+      preferences
+    });
   }
 
   if (req.method === 'GET' && url.pathname === '/v1/messages') {
