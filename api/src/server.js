@@ -41,7 +41,11 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && url.pathname === '/v1/messages') {
-    return json(res, 200, { items: messages });
+    const limitRaw = Number(url.searchParams.get('limit') || '50');
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(200, Math.floor(limitRaw)) : 50;
+    const items = messages.slice(0, limit);
+    const unreadCount = items.length;
+    return json(res, 200, { items, unreadCount, limit });
   }
 
   if (req.method === 'GET' && url.pathname === '/v1/preferences') {
