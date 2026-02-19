@@ -14,10 +14,10 @@
     </style>
   </head>
   <body>
-    <h2>Info Push 验收页（GitHub AI）</h2>
+    <h2>Info Push 验收页（GitHub AI 热门项目）</h2>
     <div class="row">
-      <button id="loadLatest">刷新最新项目</button>
-      <button id="loadTrending" style="background:#f59f00">获取热门项目</button>
+      <button id="loadLatest">查看最新项目</button>
+      <button id="loadTrending" style="background:#f59f00">刷新热门项目</button>
       <button id="triggerMsg">触发一条消息</button>
       <button id="loadMsg">刷新消息中心</button>
     </div>
@@ -46,7 +46,7 @@ document.getElementById('loadLatest').onclick=()=>loadFeed('latest');
 document.getElementById('loadTrending').onclick=()=>loadFeed('trending');
 document.getElementById('loadMsg').onclick=loadMsg;
 document.getElementById('triggerMsg').onclick=trigger;
-loadFeed('latest');loadMsg();
+loadFeed('trending');loadMsg();
 </script>
   </body>
 </html>
