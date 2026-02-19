@@ -190,7 +190,6 @@ fun AppNav() {
             composable(AppRoute.FAVORITES) {
                 FavoritesScreen(
                     viewModel = favoritesViewModel,
-                    onGoToSettings = { navController.navigate(AppRoute.SETTINGS) },
                     onOpenArticle = { item ->
                         navController.navigate(
                             ArticleRoute.create(

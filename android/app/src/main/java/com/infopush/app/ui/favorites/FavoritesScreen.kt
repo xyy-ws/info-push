@@ -15,13 +15,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.OpenInNew
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,7 +42,6 @@ import com.infopush.app.ui.common.readableTime
 @Composable
 fun FavoritesScreen(
     viewModel: FavoritesViewModel,
-    onGoToSettings: () -> Unit,
     onOpenArticle: (FeedItem) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -74,12 +75,24 @@ fun FavoritesScreen(
             )
         }
 
-        OutlinedTextField(
-            value = query,
-            onValueChange = viewModel::updateQuery,
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("搜索收藏（标题 / URL）") }
-        )
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = viewModel::updateQuery,
+                modifier = Modifier.weight(1f),
+                label = { Text("搜索收藏（标题 / URL）") }
+            )
+            IconButton(onClick = { viewModel.updateQuery(query) }) {
+                Icon(Icons.Outlined.Search, contentDescription = "搜索")
+            }
+            IconButton(onClick = { viewModel.updateQuery("") }) {
+                Icon(Icons.Outlined.Close, contentDescription = "清空")
+            }
+        }
 
         FeedbackSection(
             loading = state.loading,
@@ -127,9 +140,5 @@ fun FavoritesScreen(
             Text("当前显示 mock 数据", style = MaterialTheme.typography.bodySmall)
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = viewModel::reload) { Text("同步收藏") }
-            OutlinedButton(onClick = onGoToSettings) { Text("去设置") }
-        }
     }
 }
