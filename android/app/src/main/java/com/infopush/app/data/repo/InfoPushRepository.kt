@@ -43,7 +43,11 @@ class InfoPushRepository(
     suspend fun searchAiSources(keyword: String): List<AiDiscoveredSource> {
         val normalized = keyword.trim()
         if (normalized.isBlank()) return emptyList()
-        return api.discoverSources(AiDiscoverSourcesRequest(keyword = normalized)).sources.map {
+        val response = api.discoverSources(
+            AiDiscoverSourcesRequest(query = normalized, keyword = normalized)
+        )
+        val candidates = if (response.items.isNotEmpty()) response.items else response.sources
+        return candidates.map {
             AiDiscoveredSource(
                 name = it.name,
                 url = it.url,

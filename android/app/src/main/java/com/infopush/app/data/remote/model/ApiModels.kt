@@ -88,6 +88,7 @@ data class DataImportResponse(
 )
 
 data class AiDiscoverSourcesRequest(
+    val query: String = "",
     val keyword: String = ""
 )
 
@@ -99,5 +100,6 @@ data class AiDiscoveredSourceDto(
 )
 
 data class AiDiscoverSourcesResponse(
+    val items: List<AiDiscoveredSourceDto> = emptyList(),
     val sources: List<AiDiscoveredSourceDto> = emptyList()
 )
