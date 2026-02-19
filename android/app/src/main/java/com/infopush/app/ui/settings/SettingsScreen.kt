@@ -20,7 +20,8 @@ import com.infopush.app.domain.ImportMode
 
 @Composable
 fun SettingsScreen(
-    viewModel: SettingsViewModel
+    viewModel: SettingsViewModel,
+    onGoToMessages: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
 
@@ -36,6 +37,7 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth(),
             label = { Text("JSON 数据") }
         )
+        Button(onClick = onGoToMessages) { Text("消息中心") }
         Button(onClick = viewModel::exportData) { Text("导出本地数据") }
         Button(onClick = { viewModel.importData(ImportMode.REPLACE) }) { Text("导入数据（replace）") }
         Button(onClick = { viewModel.importData(ImportMode.MERGE) }) { Text("导入数据（merge）") }

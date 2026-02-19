@@ -28,7 +28,7 @@ import com.infopush.app.ui.common.FeedbackSection
 @Composable
 fun FavoritesScreen(
     viewModel: FavoritesViewModel,
-    onGoToMessages: () -> Unit
+    onGoToSettings: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -79,7 +79,7 @@ fun FavoritesScreen(
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = viewModel::reload) { Text("同步收藏") }
-            OutlinedButton(onClick = onGoToMessages) { Text("去消息中心") }
+            OutlinedButton(onClick = onGoToSettings) { Text("去设置") }
         }
     }
 }
