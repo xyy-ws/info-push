@@ -3,18 +3,52 @@ import { URL } from 'node:url';
 import { ingestAndRank } from './ingestion.js';
 import { fetchLatestAiRepos, fetchTrendingAiRepos } from './github-source.js';
 import { discoverSources } from './ai-discovery.js';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+
+const STATE_PATH = resolve(process.cwd(), 'apps/info-push/api/data/state.json');
+
+function ensureStateDir() {
+  const d = dirname(STATE_PATH);
+  if (!existsSync(d)) mkdirSync(d, { recursive: true });
+}
+
+function loadState() {
+  try {
+    if (!existsSync(STATE_PATH)) return null;
+    const raw = readFileSync(STATE_PATH, 'utf8');
+    return JSON.parse(raw || '{}');
+  } catch {
+    return null;
+  }
+}
+
+function saveState(state) {
+  try {
+    ensureStateDir();
+    writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), 'utf8');
+  } catch {}
+}
+
+const restored = loadState() || {};
 
 let feed = ingestAndRank('ai');
-let sources = [];
-let sourceItems = [];
+let sources = Array.isArray(restored.sources)
+  ? restored.sources.map((s) => ({ enabled: true, fetchMode: 'hybrid', ...s }))
+  : [];
+let sourceItems = Array.isArray(restored.sourceItems) ? restored.sourceItems : [];
 
 let messages = [];
-let preferences = {
+let preferences = restored.preferences || {
   topics: ['ai'],
   pushTimes: ['09:00', '20:00'],
   channels: ['in-app', 'push'],
   refreshMinutes: 10
 };
+
+function persist() {
+  saveState({ sources, sourceItems, preferences });
+}
 
 function json(res, status, data) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
@@ -40,28 +74,32 @@ function nowIso() {
 }
 
 function sortedSources() {
-  return [...sources].sort((a, b) => {
-    const bt = b.lastItemAt ? new Date(b.lastItemAt).getTime() : 0;
-    const at = a.lastItemAt ? new Date(a.lastItemAt).getTime() : 0;
-    return bt - at;
-  });
+  return [...sources]
+    .map((s) => ({ enabled: true, fetchMode: 'hybrid', ...s }))
+    .sort((a, b) => {
+      const bt = b.lastItemAt ? new Date(b.lastItemAt).getTime() : 0;
+      const at = a.lastItemAt ? new Date(a.lastItemAt).getTime() : 0;
+      return bt - at;
+    });
 }
 
 function upsertSourceItem(item) {
   const exists = sourceItems.some((x) => x.sourceId === item.sourceId && x.url === item.url);
   if (!exists) sourceItems = [item, ...sourceItems].slice(0, 5000);
+  if (!exists) persist();
   return !exists;
 }
 
 async function collectSource(source, limit = 20) {
-  if (!source?.enabled) return { ok: true, added: 0, items: [] };
+  const normalizedSource = { enabled: true, fetchMode: 'hybrid', ...source };
+  if (!normalizedSource.enabled) return { ok: true, added: 0, items: [] };
 
   let items = [];
-  if ((source.url || '').includes('github.com') || source.type === 'github') {
+  if ((normalizedSource.url || '').includes('github.com') || normalizedSource.type === 'github') {
     const result = await fetchTrendingAiRepos(limit);
     items = (result.items || []).slice(0, limit).map((it) => ({
       id: `itm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      sourceId: source.id,
+      sourceId: normalizedSource.id,
       title: it.title,
       summary: it.summaryZh || it.summary || '暂无简介',
       url: it.url,
@@ -72,10 +110,10 @@ async function collectSource(source, limit = 20) {
     items = [
       {
         id: `itm-${Date.now()}-seed`,
-        sourceId: source.id,
-        title: `${source.name} 示例条目`,
+        sourceId: normalizedSource.id,
+        title: `${normalizedSource.name} 示例条目`,
         summary: '该来源已接入，后续将按混合抓取策略获取真实内容。',
-        url: source.url,
+        url: normalizedSource.url,
         publishedAt: nowIso(),
         createdAt: nowIso()
       }
@@ -89,8 +127,9 @@ async function collectSource(source, limit = 20) {
 
   const latest = items[0]?.publishedAt || nowIso();
   sources = sources.map((s) =>
-    s.id === source.id ? { ...s, lastFetchedAt: nowIso(), lastItemAt: latest, updatedAt: nowIso() } : s
+    s.id === normalizedSource.id ? { ...s, lastFetchedAt: nowIso(), lastItemAt: latest, updatedAt: nowIso() } : s
   );
+  persist();
 
   return { ok: true, added, items };
 }
@@ -172,6 +211,7 @@ const server = http.createServer(async (req, res) => {
       if (!item.url) return json(res, 400, { ok: false, error: 'url_required' });
       const exists = sources.some((s) => s.url === item.url);
       if (!exists) sources = [item, ...sources].slice(0, 500);
+      persist();
 
       return json(res, 200, { ok: true, item, duplicated: exists });
     } catch {
@@ -202,6 +242,7 @@ const server = http.createServer(async (req, res) => {
               }
             : s
         );
+        persist();
         return json(res, 200, { ok: true });
       } catch {
         return json(res, 400, { ok: false, error: 'invalid_json' });
@@ -211,6 +252,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'DELETE') {
       sources = sources.filter((s) => s.id !== sourceId);
       sourceItems = sourceItems.filter((it) => it.sourceId !== sourceId);
+      persist();
       return json(res, 200, { ok: true });
     }
   }
@@ -253,6 +295,7 @@ const server = http.createServer(async (req, res) => {
     try {
       const payload = await readJsonBody(req);
       preferences = { ...preferences, ...payload };
+      persist();
       return json(res, 200, { ok: true, preferences });
     } catch {
       return json(res, 400, { ok: false, error: 'invalid_json' });
