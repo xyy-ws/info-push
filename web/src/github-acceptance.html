@@ -42,7 +42,7 @@ async function loadFeed(mode='latest'){
     if (hasChinese) return s;
     return `这是一个 GitHub 项目：${s}`;
   };
-  feedEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div><strong>${i.title}</strong></div><div class='summary'>简介（中文）：${toChineseSummary(i.summary)}</div><div class='muted'>⭐${i.stars??0} · ${i.language||'-'} · ${i.updatedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a></div>`).join('')||'<div class="card">暂无数据</div>';
+  feedEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div><strong>${i.title}</strong></div><div class='summary'>简介（中文）：${i.summaryZh || toChineseSummary(i.summary)}</div><div class='muted'>⭐${i.stars??0} · ${i.language||'-'} · ${i.updatedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a></div>`).join('')||'<div class="card">暂无数据</div>';
 }
 async function loadMsg(){
   const r=await fetch(`${API}/v1/messages?limit=20`); const d=await r.json();

@@ -5,12 +5,31 @@ function authHeader() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-function normalizeItem(item) {
+async function translateToChinese(text = '') {
+  const raw = String(text || '').trim();
+  if (!raw) return '暂无简介';
+  if (/[\u4e00-\u9fa5]/.test(raw)) return raw;
+  try {
+    const q = encodeURIComponent(raw);
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=zh-CN&dt=t&q=${q}`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'info-push-app/0.1' } });
+    if (!res.ok) throw new Error(`translate_status_${res.status}`);
+    const data = await res.json();
+    const translated = Array.isArray(data?.[0]) ? data[0].map((part) => part?.[0] || '').join('') : '';
+    return translated || `这是一个 GitHub 项目：${raw}`;
+  } catch {
+    return `这是一个 GitHub 项目：${raw}`;
+  }
+}
+
+async function normalizeItem(item) {
+  const summary = item.description || 'No description';
   return {
     id: `gh-${item.id}`,
     source: 'github',
     title: item.full_name,
-    summary: item.description || 'No description',
+    summary,
+    summaryZh: await translateToChinese(summary),
     url: item.html_url,
     stars: item.stargazers_count || 0,
     updatedAt: item.updated_at,
@@ -33,7 +52,12 @@ async function queryGithub(query, limit = 10) {
 
   if (!res.ok) throw new Error(`github_status_${res.status}`);
   const data = await res.json();
-  return Array.isArray(data.items) ? data.items.map(normalizeItem) : [];
+  const arr = Array.isArray(data.items) ? data.items : [];
+  const items = [];
+  for (const it of arr) {
+    items.push(await normalizeItem(it));
+  }
+  return items;
 }
 
 function fallbackItem(kind) {
@@ -42,6 +66,7 @@ function fallbackItem(kind) {
     source: 'github',
     title: `fallback/${kind}-ai-repo`,
     summary: `Fallback ${kind} item when GitHub API is unavailable or rate-limited.`,
+    summaryZh: `这是 ${kind} 模式的降级数据，用于在 GitHub 接口限流时保持页面可用。`,
     url: 'https://github.com/topics/ai',
     stars: 0,
     updatedAt: new Date().toISOString(),
