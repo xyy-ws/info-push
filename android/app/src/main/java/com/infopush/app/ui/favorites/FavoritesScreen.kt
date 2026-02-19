@@ -15,22 +15,25 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun FavoritesScreen(
-    viewModel: FavoriteFeedbackViewModel,
+    viewModel: FavoritesViewModel,
     onGoToMessages: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
 
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.Start
     ) {
         Text("收藏")
-        Button(onClick = viewModel::onFavoriteClick) {
-            Text(state.buttonText)
+        when {
+            state.loading -> Text("加载中...")
+            state.error != null -> Text(state.error ?: "加载失败")
+            state.items.isEmpty() -> Text("暂无收藏")
+            else -> state.items.forEach { Text("• ${it.title}") }
         }
-        Button(onClick = onGoToMessages) {
-            Text("去消息中心")
-        }
+        if (state.fromMock) Text("当前显示 mock 数据")
+        Button(onClick = viewModel::reload) { Text("刷新") }
+        Button(onClick = onGoToMessages) { Text("去消息中心") }
     }
 }

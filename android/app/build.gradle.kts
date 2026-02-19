@@ -13,11 +13,19 @@ android {
         minSdk = 24
         targetSdk = 34
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "API_BASE_URL", "\"https://api.infopush.example/\"")
+        buildConfigField("boolean", "ENABLE_MOCK_FALLBACK", "true")
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "API_BASE_URL", "\"https://api.infopush.example/\"")
+            buildConfigField("boolean", "ENABLE_MOCK_FALLBACK", "true")
+        }
         release {
             isMinifyEnabled = false
+            buildConfigField("String", "API_BASE_URL", "\"https://api.infopush.example/\"")
+            buildConfigField("boolean", "ENABLE_MOCK_FALLBACK", "false")
         }
     }
 
@@ -32,6 +40,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {

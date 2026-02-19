@@ -7,21 +7,33 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun SourcesScreen(onGoToFavorites: () -> Unit) {
+fun SourcesScreen(
+    viewModel: SourcesViewModel,
+    onGoToFavorites: () -> Unit
+) {
+    val state by viewModel.uiState.collectAsState()
+
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.Start
     ) {
         Text("信息源")
-        Text("你已订阅的信息源列表")
-        Button(onClick = onGoToFavorites) {
-            Text("去收藏")
+        when {
+            state.loading -> Text("加载中...")
+            state.error != null -> Text(state.error ?: "加载失败")
+            state.items.isEmpty() -> Text("暂无信息源")
+            else -> state.items.forEach { Text("• ${it.name}") }
         }
+        if (state.fromMock) Text("当前显示 mock 数据")
+        Button(onClick = viewModel::reload) { Text("刷新") }
+        Button(onClick = onGoToFavorites) { Text("去收藏") }
     }
 }

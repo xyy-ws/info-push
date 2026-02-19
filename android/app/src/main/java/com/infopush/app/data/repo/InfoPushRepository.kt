@@ -17,8 +17,11 @@ import kotlinx.coroutines.flow.map
 
 class InfoPushRepository(
     private val database: InfoPushDatabase,
-    private val api: InfoPushApi
+    private val api: InfoPushApi,
+    private val enableMockFallback: Boolean = false
 ) {
+    fun observeSources(): Flow<List<SourceEntity>> = database.sourceDao().observeSources()
+
     fun observeFeed(sourceId: String): Flow<List<FeedItem>> {
         return database.sourceDao().observeSourceItems(sourceId).map { items ->
             items.map { item ->
@@ -34,20 +37,19 @@ class InfoPushRepository(
         }
     }
 
-    suspend fun refreshSource(sourceId: String) {
-        val response = api.getHomeSources()
-        database.sourceDao().upsertSources(
-            response.sources.map { source ->
-                SourceEntity(
-                    id = source.id,
-                    name = source.name
-                )
-            }
-        )
-        database.sourceDao().upsertSourceItems(
-            response.items
-                .filter { it.sourceId == sourceId }
-                .map { item ->
+    suspend fun refreshSourcesAndFeed(): RefreshResult {
+        return try {
+            val response = api.getHomeSources()
+            database.sourceDao().upsertSources(
+                response.sources.map { source ->
+                    SourceEntity(
+                        id = source.id,
+                        name = source.name
+                    )
+                }
+            )
+            database.sourceDao().upsertSourceItems(
+                response.items.map { item ->
                     SourceItemEntity(
                         id = item.id,
                         sourceId = item.sourceId,
@@ -57,7 +59,52 @@ class InfoPushRepository(
                         publishedAt = item.publishedAt.orEmpty()
                     )
                 }
-        )
+            )
+            RefreshResult.Success()
+        } catch (t: Throwable) {
+            applySourcesMockFallback(t)
+        }
+    }
+
+    suspend fun refreshSource(sourceId: String) {
+        val result = refreshSourcesAndFeed()
+        if (result is RefreshResult.Error) throw IllegalStateException(result.message)
+        if (sourceId.isBlank()) return
+    }
+
+    fun observeFavorites(): Flow<List<FeedItem>> {
+        return database.favoriteDao().observeAll().map { favorites ->
+            favorites.map {
+                FeedItem(
+                    id = it.itemId,
+                    sourceId = it.sourceId,
+                    title = it.title,
+                    summary = "",
+                    url = it.url,
+                    publishedAt = it.createdAt
+                )
+            }
+        }
+    }
+
+    suspend fun refreshFavorites(): RefreshResult {
+        return try {
+            val response = api.getFavorites()
+            response.items.forEach { item ->
+                database.favoriteDao().upsert(
+                    FavoriteEntity(
+                        itemId = item.id,
+                        sourceId = item.sourceId,
+                        title = item.title,
+                        url = item.url.orEmpty(),
+                        createdAt = item.favoritedAt ?: item.publishedAt.orEmpty()
+                    )
+                )
+            }
+            RefreshResult.Success()
+        } catch (t: Throwable) {
+            applyFavoritesMockFallback(t)
+        }
     }
 
     suspend fun addFavorite(item: FeedItem): AddFavoriteResult {
@@ -102,6 +149,25 @@ class InfoPushRepository(
         }
     }
 
+    suspend fun refreshMessages(): RefreshResult {
+        return try {
+            val remote = api.exportData().data.messages
+            upsertMessages(
+                remote.map {
+                    InfoMessage(
+                        id = it.id,
+                        title = it.title,
+                        body = it.body.orEmpty(),
+                        createdAt = it.createdAt.orEmpty()
+                    )
+                }
+            )
+            RefreshResult.Success()
+        } catch (t: Throwable) {
+            applyMessagesMockFallback(t)
+        }
+    }
+
     suspend fun importData(request: DataImportRequest): DataImportResponse {
         return api.importData(request)
     }
@@ -123,9 +189,82 @@ class InfoPushRepository(
             }
         )
     }
+
+    private suspend fun applySourcesMockFallback(t: Throwable): RefreshResult {
+        if (!enableMockFallback) return RefreshResult.Error("信息源加载失败: ${t.message.orEmpty()}")
+
+        database.sourceDao().upsertSources(MockData.sources)
+        database.sourceDao().upsertSourceItems(MockData.sourceItems)
+        return RefreshResult.Success(fromMock = true)
+    }
+
+    private suspend fun applyFavoritesMockFallback(t: Throwable): RefreshResult {
+        if (!enableMockFallback) return RefreshResult.Error("收藏加载失败: ${t.message.orEmpty()}")
+
+        MockData.favorites.forEach { database.favoriteDao().upsert(it) }
+        return RefreshResult.Success(fromMock = true)
+    }
+
+    private suspend fun applyMessagesMockFallback(t: Throwable): RefreshResult {
+        if (!enableMockFallback) return RefreshResult.Error("消息加载失败: ${t.message.orEmpty()}")
+
+        database.messageDao().upsertAll(MockData.messages)
+        return RefreshResult.Success(fromMock = true)
+    }
+}
+
+sealed interface RefreshResult {
+    data class Success(val fromMock: Boolean = false) : RefreshResult
+    data class Error(val message: String) : RefreshResult
 }
 
 enum class AddFavoriteResult {
     Success,
     Duplicated
+}
+
+private object MockData {
+    val sources = listOf(
+        SourceEntity(id = "mock-tech", name = "Mock 科技"),
+        SourceEntity(id = "mock-world", name = "Mock 全球")
+    )
+
+    val sourceItems = listOf(
+        SourceItemEntity(
+            id = "mock-item-1",
+            sourceId = "mock-tech",
+            title = "Mock: Kotlin 发布新版本",
+            summary = "用于 API 不可用时的本地展示",
+            url = "https://example.com/mock/1",
+            publishedAt = "2026-02-19T00:00:00Z"
+        ),
+        SourceItemEntity(
+            id = "mock-item-2",
+            sourceId = "mock-world",
+            title = "Mock: 世界热点",
+            summary = "兜底示例内容",
+            url = "https://example.com/mock/2",
+            publishedAt = "2026-02-19T00:10:00Z"
+        )
+    )
+
+    val favorites = listOf(
+        FavoriteEntity(
+            itemId = "mock-item-1",
+            sourceId = "mock-tech",
+            title = "Mock: Kotlin 发布新版本",
+            url = "https://example.com/mock/1",
+            createdAt = "2026-02-19T00:00:00Z"
+        )
+    )
+
+    val messages = listOf(
+        MessageEntity(
+            id = "mock-msg-1",
+            title = "Mock 消息",
+            body = "当前处于离线兜底模式",
+            createdAt = "2026-02-19T00:00:00Z",
+            read = false
+        )
+    )
 }

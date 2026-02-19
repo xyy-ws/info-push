@@ -16,8 +16,6 @@ import com.infopush.app.data.remote.model.HomeSourcesResponse
 import com.infopush.app.data.remote.model.SourceDto
 import com.infopush.app.data.remote.model.SourceItemDto
 import com.infopush.app.domain.FeedItem
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -82,10 +80,10 @@ class InfoPushRepositoryTest {
         assertEquals(1, firstEmission.size)
         assertEquals("local-1", firstEmission.first().id)
 
-        val nextEmission = async { repository.observeFeed("tech").drop(1).first() }
-        repository.refreshSource("tech")
-        val refreshed = nextEmission.await()
+        val refreshResult = repository.refreshSourcesAndFeed()
+        assertTrue(refreshResult is RefreshResult.Success)
 
+        val refreshed = repository.observeFeed("tech").first()
         assertEquals(2, refreshed.size)
         assertTrue(refreshed.any { it.id == "remote-1" })
 
