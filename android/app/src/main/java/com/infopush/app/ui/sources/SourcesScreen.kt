@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,10 +17,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.infopush.app.link.LinkOpener
 
 @Composable
 fun SourcesScreen(
@@ -32,6 +36,9 @@ fun SourcesScreen(
     var url by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("rss") }
     var tags by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val linkOpener = remember { LinkOpener(context, scope = scope) }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
@@ -55,6 +62,7 @@ fun SourcesScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Text("${item.name} (${item.type})")
                     Text(item.url)
+                    OutlinedButton(onClick = { linkOpener.open(item.url) }) { Text("打开链接") }
                     Text("推荐理由: ${item.reason.ifBlank { "-" }}")
                 }
                 Button(onClick = { viewModel.addDiscoveredSource(item) }) {
@@ -83,6 +91,9 @@ fun SourcesScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Text("${source.name} (${source.type})")
                     Text(source.url)
+                    if (source.url.isNotBlank()) {
+                        OutlinedButton(onClick = { linkOpener.open(source.url) }) { Text("打开链接") }
+                    }
                     Text("tags: ${source.tags.ifBlank { "-" }}")
                     Text(if (source.enabled) "状态: 已启用" else "状态: 已禁用")
                 }

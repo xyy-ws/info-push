@@ -11,9 +11,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.rememberCoroutineScope
+import com.infopush.app.link.LinkOpener
 
 @Composable
 fun FeedScreen(
@@ -21,6 +25,9 @@ fun FeedScreen(
     onGoToSources: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val linkOpener = remember { LinkOpener(context, scope = scope) }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -51,7 +58,14 @@ fun FeedScreen(
             state.error != null -> Text(state.error ?: "加载失败")
             state.selectedSourceId == null -> Text("暂无可用信息源，请先添加或启用信息源")
             state.items.isEmpty() -> Text("该信息源暂无内容")
-            else -> state.items.take(5).forEach { Text("• ${it.title}") }
+            else -> state.items.take(5).forEach {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("• ${it.title}")
+                    if (it.url.isNotBlank()) {
+                        OutlinedButton(onClick = { linkOpener.open(it.url) }) { Text("打开原文") }
+                    }
+                }
+            }
         }
         if (state.fromMock) Text("当前显示 mock 数据")
         Button(onClick = viewModel::refreshCurrentSource) { Text("刷新当前信息源") }
