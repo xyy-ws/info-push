@@ -34,7 +34,7 @@ fun FeedScreen(
             else -> state.items.take(5).forEach { Text("• ${it.title}") }
         }
         if (state.fromMock) Text("当前显示 mock 数据")
-        Button(onClick = viewModel::reload) { Text("刷新") }
+        Button(onClick = viewModel::reload) { Text("手动同步远端") }
         Button(onClick = onGoToSources) { Text("查看信息源") }
     }
 }

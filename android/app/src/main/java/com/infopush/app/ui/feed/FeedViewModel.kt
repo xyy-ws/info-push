@@ -47,7 +47,6 @@ class FeedViewModel(
                 }
             }
         }
-        reload()
     }
 
     fun reload() {

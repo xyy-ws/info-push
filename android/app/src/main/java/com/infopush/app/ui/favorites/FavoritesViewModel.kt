@@ -29,7 +29,6 @@ class FavoritesViewModel(
                 _uiState.value = _uiState.value.copy(loading = false, items = favorites)
             }
         }
-        reload()
     }
 
     fun reload() {

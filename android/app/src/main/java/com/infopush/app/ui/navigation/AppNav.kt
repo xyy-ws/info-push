@@ -18,6 +18,8 @@ import com.infopush.app.ui.feed.FeedViewModel
 import com.infopush.app.ui.messages.MessagesScreen
 import com.infopush.app.ui.messages.MessagesViewModel
 import com.infopush.app.ui.settings.SettingsScreen
+import com.infopush.app.ui.settings.SettingsViewModel
+import com.infopush.app.ui.sources.SourceDraft
 import com.infopush.app.ui.sources.SourcesScreen
 import com.infopush.app.ui.sources.SourcesViewModel
 
@@ -35,7 +37,9 @@ fun AppNav() {
     val context = LocalContext.current
 
     val database = remember {
-        Room.databaseBuilder(context, InfoPushDatabase::class.java, "info_push.db").build()
+        Room.databaseBuilder(context, InfoPushDatabase::class.java, "info_push.db")
+            .fallbackToDestructiveMigration()
+            .build()
     }
     val api = remember { NetworkModule.createApi(BuildConfig.API_BASE_URL) }
     val repository = remember { InfoPushRepository(database, api, BuildConfig.ENABLE_MOCK_FALLBACK) }
@@ -50,7 +54,10 @@ fun AppNav() {
     val sourcesViewModel = remember {
         SourcesViewModel(
             observeSources = { repository.observeSources() },
-            refreshSources = { repository.refreshSourcesAndFeed() }
+            refreshSources = { repository.refreshSourcesAndFeed() },
+            addSource = { draft: SourceDraft -> repository.addSource(draft.name, draft.url, draft.type, draft.tags) },
+            setSourceEnabled = { sourceId, enabled -> repository.setSourceEnabled(sourceId, enabled) },
+            deleteSource = { sourceId -> repository.deleteSource(sourceId) }
         )
     }
     val favoritesViewModel = remember {
@@ -63,6 +70,12 @@ fun AppNav() {
         MessagesViewModel(
             observeMessages = { repository.observeMessages() },
             refreshMessages = { repository.refreshMessages() }
+        )
+    }
+    val settingsViewModel = remember {
+        SettingsViewModel(
+            exportLocalJson = { repository.exportLocalJson() },
+            importLocalJson = { json, mode -> repository.importLocalJson(json, mode) }
         )
     }
 
@@ -92,11 +105,7 @@ fun AppNav() {
             )
         }
         composable(AppRoute.SETTINGS) {
-            SettingsScreen(
-                onExportData = {},
-                onImportReplace = {},
-                onImportMerge = {}
-            )
+            SettingsScreen(viewModel = settingsViewModel)
         }
     }
 }

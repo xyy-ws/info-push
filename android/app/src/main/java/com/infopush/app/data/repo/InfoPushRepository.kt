@@ -10,10 +10,14 @@ import com.infopush.app.data.remote.model.DataExportResponse
 import com.infopush.app.data.remote.model.DataImportRequest
 import com.infopush.app.data.remote.model.DataImportResponse
 import com.infopush.app.data.remote.model.FavoriteRequest
+import com.infopush.app.domain.ExportData
 import com.infopush.app.domain.FeedItem
+import com.infopush.app.domain.ImportExportUseCase
+import com.infopush.app.domain.ImportMode
 import com.infopush.app.domain.InfoMessage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.util.UUID
 
 class InfoPushRepository(
     private val database: InfoPushDatabase,
@@ -21,6 +25,29 @@ class InfoPushRepository(
     private val enableMockFallback: Boolean = false
 ) {
     fun observeSources(): Flow<List<SourceEntity>> = database.sourceDao().observeSources()
+
+    suspend fun addSource(name: String, url: String, type: String, tags: String) {
+        database.sourceDao().upsertSource(
+            SourceEntity(
+                id = "local-${UUID.randomUUID()}",
+                name = name.trim(),
+                url = url.trim(),
+                type = type.trim().ifBlank { "rss" },
+                tags = tags.trim(),
+                enabled = true
+            )
+        )
+    }
+
+    suspend fun setSourceEnabled(sourceId: String, enabled: Boolean) {
+        val source = database.sourceDao().getSourceById(sourceId) ?: return
+        database.sourceDao().upsertSource(source.copy(enabled = enabled))
+    }
+
+    suspend fun deleteSource(sourceId: String) {
+        database.sourceDao().deleteSourceItemsBySourceId(sourceId)
+        database.sourceDao().deleteSource(sourceId)
+    }
 
     fun observeFeed(sourceId: String): Flow<List<FeedItem>> {
         return database.sourceDao().observeSourceItems(sourceId).map { items ->
@@ -37,6 +64,12 @@ class InfoPushRepository(
         }
     }
 
+    suspend fun refreshSource(sourceId: String) {
+        val result = refreshSourcesAndFeed()
+        if (result is RefreshResult.Error) throw IllegalStateException(result.message)
+        if (sourceId.isBlank()) return
+    }
+
     suspend fun refreshSourcesAndFeed(): RefreshResult {
         return try {
             val response = api.getHomeSources()
@@ -44,7 +77,11 @@ class InfoPushRepository(
                 response.sources.map { source ->
                     SourceEntity(
                         id = source.id,
-                        name = source.name
+                        name = source.name,
+                        url = source.url.orEmpty(),
+                        type = "rss",
+                        tags = source.description.orEmpty(),
+                        enabled = true
                     )
                 }
             )
@@ -64,12 +101,6 @@ class InfoPushRepository(
         } catch (t: Throwable) {
             applySourcesMockFallback(t)
         }
-    }
-
-    suspend fun refreshSource(sourceId: String) {
-        val result = refreshSourcesAndFeed()
-        if (result is RefreshResult.Error) throw IllegalStateException(result.message)
-        if (sourceId.isBlank()) return
     }
 
     fun observeFavorites(): Flow<List<FeedItem>> {
@@ -190,6 +221,16 @@ class InfoPushRepository(
         )
     }
 
+    suspend fun exportLocalJson(nowProvider: () -> String = { java.time.Instant.now().toString() }): String {
+        val useCase = ImportExportUseCase(LocalStore(database), nowProvider)
+        return useCase.exportJson()
+    }
+
+    suspend fun importLocalJson(json: String, mode: ImportMode) {
+        val useCase = ImportExportUseCase(LocalStore(database))
+        useCase.importJson(json, mode)
+    }
+
     private suspend fun applySourcesMockFallback(t: Throwable): RefreshResult {
         if (!enableMockFallback) return RefreshResult.Error("信息源加载失败: ${t.message.orEmpty()}")
 
@@ -201,7 +242,7 @@ class InfoPushRepository(
     private suspend fun applyFavoritesMockFallback(t: Throwable): RefreshResult {
         if (!enableMockFallback) return RefreshResult.Error("收藏加载失败: ${t.message.orEmpty()}")
 
-        MockData.favorites.forEach { database.favoriteDao().upsert(it) }
+        database.favoriteDao().upsertAll(MockData.favorites)
         return RefreshResult.Success(fromMock = true)
     }
 
@@ -210,6 +251,37 @@ class InfoPushRepository(
 
         database.messageDao().upsertAll(MockData.messages)
         return RefreshResult.Success(fromMock = true)
+    }
+}
+
+private class LocalStore(
+    private val database: InfoPushDatabase
+) : ImportExportUseCase.Store {
+    override suspend fun snapshot(): ExportData {
+        return ExportData(
+            sources = database.sourceDao().listSources(),
+            sourceItems = database.sourceDao().listSourceItems(),
+            favorites = database.favoriteDao().listAll(),
+            messages = database.messageDao().listAll(),
+            preferences = database.preferenceDao().listAll()
+        )
+    }
+
+    override suspend fun replaceAll(data: ExportData) {
+        database.sourceDao().clearSourceItems()
+        database.sourceDao().clearSources()
+        database.favoriteDao().clearAll()
+        database.messageDao().clearAll()
+        database.preferenceDao().clearAll()
+        merge(data)
+    }
+
+    override suspend fun merge(data: ExportData) {
+        database.sourceDao().upsertSources(data.sources)
+        database.sourceDao().upsertSourceItems(data.sourceItems)
+        database.favoriteDao().upsertAll(data.favorites)
+        database.messageDao().upsertAll(data.messages)
+        database.preferenceDao().upsertAll(data.preferences)
     }
 }
 

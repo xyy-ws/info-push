@@ -20,7 +20,7 @@ import com.infopush.app.data.local.entity.SourceItemEntity
         MessageEntity::class,
         PreferenceEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class InfoPushDatabase : RoomDatabase() {

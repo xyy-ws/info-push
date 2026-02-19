@@ -13,4 +13,10 @@ interface MessageDao {
 
     @Query("SELECT * FROM messages ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<MessageEntity>>
+
+    @Query("SELECT * FROM messages")
+    suspend fun listAll(): List<MessageEntity>
+
+    @Query("DELETE FROM messages")
+    suspend fun clearAll()
 }

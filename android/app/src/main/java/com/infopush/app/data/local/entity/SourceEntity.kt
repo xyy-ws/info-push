@@ -6,5 +6,9 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "sources")
 data class SourceEntity(
     @PrimaryKey val id: String,
-    val name: String
+    val name: String,
+    val url: String = "",
+    val type: String = "rss",
+    val tags: String = "",
+    val enabled: Boolean = true
 )

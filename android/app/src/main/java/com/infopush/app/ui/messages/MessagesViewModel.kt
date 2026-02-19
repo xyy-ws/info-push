@@ -29,7 +29,6 @@ class MessagesViewModel(
                 _uiState.value = _uiState.value.copy(loading = false, items = messages)
             }
         }
-        reload()
     }
 
     fun reload() {
