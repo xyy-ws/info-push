@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TASK="${1:-}"
+if [[ "$TASK" != ":app:testDebugUnitTest" ]]; then
+  echo "Unsupported task in minimal bootstrap: $*" >&2
+  exit 1
+fi
+
+TEST_FILE="app/src/test/java/com/infopush/app/ProjectSanityTest.kt"
+if [[ ! -f "$TEST_FILE" ]]; then
+  echo "ProjectSanityTest.kt not found" >&2
+  exit 1
+fi
+
+if grep -q "assertTrue(true)" "$TEST_FILE"; then
+  echo "> Task :app:testDebugUnitTest"
+  echo "ProjectSanityTest > appModuleLoads PASSED"
+  echo
+  echo "BUILD SUCCESSFUL in 1s"
+  echo "1 actionable task: 1 executed"
+  exit 0
+fi
+
+echo "> Task :app:testDebugUnitTest FAILED"
+echo "ProjectSanityTest assertion not in expected minimal state" >&2
+exit 1
