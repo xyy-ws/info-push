@@ -8,9 +8,12 @@
       body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:20px;background:#0b1020;color:#eaf0ff}
       .row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
       button{padding:8px 12px;border:0;border-radius:8px;background:#4f7cff;color:#fff;cursor:pointer}
+      input{padding:8px 12px;border:1px solid #24345f;border-radius:8px;background:#0f1530;color:#fff;min-width:260px}
       .card{background:#111936;border:1px solid #24345f;border-radius:10px;padding:10px;margin:8px 0}
       .muted{color:#9fb0df;font-size:12px}
       .summary{margin-top:6px;line-height:1.5;color:#d6e2ff}
+      .grid{display:grid;grid-template-columns:1fr;gap:12px}
+      @media (min-width: 980px){.grid{grid-template-columns:1fr 1fr}}
     </style>
   </head>
   <body>
@@ -22,6 +25,26 @@
       <button id="loadMsg">刷新消息中心</button>
       <button id="langToggle" style="background:#12b886">EN</button>
     </div>
+
+    <div class="card">
+      <div class="row">
+        <input id="sourceQuery" placeholder="输入需求，例如：AI coding、LLM、agent、AIGC" value="AI 热门技术资讯" />
+        <button id="discoverSources" style="background:#7048e8">AI 搜索信息源</button>
+        <button id="loadSources" style="background:#2b8a3e">刷新已添加信息源</button>
+      </div>
+      <div id="discoverMeta" class="muted"></div>
+      <div class="grid">
+        <div>
+          <h3>候选信息源（确认后添加）</h3>
+          <div id="sourceCandidates"></div>
+        </div>
+        <div>
+          <h3>已添加信息源</h3>
+          <div id="sourceList"></div>
+        </div>
+      </div>
+    </div>
+
     <div id="meta" class="muted"></div>
     <h3 id="feedTitle">GitHub Feed</h3>
     <div id="feed"></div>
@@ -33,8 +56,12 @@ const feedEl=document.getElementById('feed');
 const msgEl=document.getElementById('msg');
 const meta=document.getElementById('meta');
 const langBtn=document.getElementById('langToggle');
+const sourceCandidatesEl=document.getElementById('sourceCandidates');
+const sourceListEl=document.getElementById('sourceList');
+const discoverMetaEl=document.getElementById('discoverMeta');
 let lang='zh';
 let lastMode='trending';
+let candidates=[];
 
 function t(k){
   const dict={
@@ -62,19 +89,53 @@ async function loadFeed(mode='latest'){
   meta.textContent=`mode=${d.mode||mode} provider=${d.provider||'-'} live=${String(d.live)} items=${(d.items||[]).length}`;
   feedEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div><strong>${i.title}</strong></div><div class='summary'>${t('summary')}：${lang==='zh' ? (i.summaryZh||i.summary||'暂无简介') : (i.summary||'No summary')}</div><div class='muted'>⭐${i.stars??0} · ${i.language||'-'} · ${i.updatedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a></div>`).join('')||`<div class="card">${t('empty')}</div>`;
 }
+
+function renderCandidates(){
+  sourceCandidatesEl.innerHTML = candidates.map((s, idx)=>`<div class='card'><div><strong>${s.name}</strong> <span class='muted'>(${s.type})</span></div><div class='summary'>${s.reason||''}</div><div class='muted'>${s.url}</div><button data-idx='${idx}' class='add-source-btn' style='background:#2b8a3e;margin-top:6px'>添加</button></div>`).join('') || `<div class='card'>暂无候选源</div>`;
+  document.querySelectorAll('.add-source-btn').forEach(btn=>{
+    btn.onclick = async () => {
+      const item = candidates[Number(btn.dataset.idx)];
+      if (!item) return;
+      await fetch(`${API}/v1/sources`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(item) });
+      await loadSources();
+    };
+  });
+}
+
+async function discoverSources(){
+  const query = document.getElementById('sourceQuery').value.trim() || 'AI';
+  const r = await fetch(`${API}/v1/ai/discover-sources`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ query, limit: 8 }) });
+  const d = await r.json();
+  candidates = d.items || [];
+  discoverMetaEl.textContent = `discover_mode=${d.mode||'-'} query=${d.query||query} candidates=${candidates.length}`;
+  renderCandidates();
+}
+
+async function loadSources(){
+  const r = await fetch(`${API}/v1/sources`);
+  const d = await r.json();
+  const items = d.items || [];
+  sourceListEl.innerHTML = items.map(s=>`<div class='card'><div><strong>${s.name}</strong> <span class='muted'>(${s.type})</span></div><div class='muted'>${s.url}</div><div class='summary'>${s.reason||''}</div></div>`).join('') || `<div class='card'>暂无已添加源</div>`;
+}
+
 async function loadMsg(){
   const r=await fetch(`${API}/v1/messages?limit=20`); const d=await r.json();
   msgEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div>${i.title}</div><div class='summary'>${i.body||''}</div><div class='muted'>${i.createdAt}</div></div>`).join('')||`<div class="card">${t('noMsg')}</div>`;
 }
 async function trigger(){await fetch(`${API}/v1/push/trigger`,{method:'POST'}); await loadMsg();}
+
 document.getElementById('loadLatest').onclick=()=>loadFeed('latest');
 document.getElementById('loadTrending').onclick=()=>loadFeed('trending');
 document.getElementById('loadMsg').onclick=loadMsg;
 document.getElementById('triggerMsg').onclick=trigger;
+document.getElementById('discoverSources').onclick=discoverSources;
+document.getElementById('loadSources').onclick=loadSources;
 langBtn.onclick=async ()=>{lang = lang==='zh'?'en':'zh'; applyLang(); await loadFeed(lastMode); await loadMsg();};
+
 applyLang();
 loadFeed('trending');
 loadMsg();
+loadSources();
 </script>
   </body>
 </html>

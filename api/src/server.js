@@ -2,8 +2,10 @@ import http from 'node:http';
 import { URL } from 'node:url';
 import { ingestAndRank } from './ingestion.js';
 import { fetchLatestAiRepos, fetchTrendingAiRepos } from './github-source.js';
+import { discoverSources } from './ai-discovery.js';
 
 let feed = ingestAndRank('ai');
+let sources = [];
 
 let messages = [];
 let preferences = {
@@ -15,6 +17,20 @@ let preferences = {
 function json(res, status, data) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(data));
+}
+
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk) => (body += chunk));
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(body || '{}'));
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
 }
 
 const server = http.createServer(async (req, res) => {
@@ -53,6 +69,45 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, result);
   }
 
+  if (req.method === 'POST' && url.pathname === '/v1/ai/discover-sources') {
+    try {
+      const payload = await readJsonBody(req);
+      const query = String(payload?.query || 'ai');
+      const limit = Number(payload?.limit || 8);
+      const result = await discoverSources(query, limit);
+      return json(res, 200, { ok: true, query, ...result });
+    } catch {
+      return json(res, 400, { ok: false, error: 'invalid_json' });
+    }
+  }
+
+  if (req.method === 'GET' && url.pathname === '/v1/sources') {
+    return json(res, 200, { items: sources });
+  }
+
+  if (req.method === 'POST' && url.pathname === '/v1/sources') {
+    try {
+      const payload = await readJsonBody(req);
+      const item = {
+        id: payload.id || `src-${Date.now()}`,
+        type: payload.type || 'custom',
+        name: payload.name || 'Untitled Source',
+        url: payload.url || '',
+        reason: payload.reason || '',
+        tags: Array.isArray(payload.tags) ? payload.tags : [],
+        createdAt: new Date().toISOString()
+      };
+
+      if (!item.url) return json(res, 400, { ok: false, error: 'url_required' });
+      const exists = sources.some((s) => s.url === item.url);
+      if (!exists) sources = [item, ...sources].slice(0, 200);
+
+      return json(res, 200, { ok: true, item, duplicated: exists });
+    } catch {
+      return json(res, 400, { ok: false, error: 'invalid_json' });
+    }
+  }
+
   if (req.method === 'GET' && url.pathname === '/v1/messages') {
     const limitRaw = Number(url.searchParams.get('limit') || '50');
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(200, Math.floor(limitRaw)) : 50;
@@ -66,18 +121,13 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/v1/preferences') {
-    let body = '';
-    req.on('data', (chunk) => (body += chunk));
-    req.on('end', () => {
-      try {
-        const payload = JSON.parse(body || '{}');
-        preferences = { ...preferences, ...payload };
-        return json(res, 200, { ok: true, preferences });
-      } catch {
-        return json(res, 400, { ok: false, error: 'invalid_json' });
-      }
-    });
-    return;
+    try {
+      const payload = await readJsonBody(req);
+      preferences = { ...preferences, ...payload };
+      return json(res, 200, { ok: true, preferences });
+    } catch {
+      return json(res, 400, { ok: false, error: 'invalid_json' });
+    }
   }
 
   if (req.method === 'POST' && url.pathname === '/v1/push/trigger') {
