@@ -20,12 +20,27 @@ function tokenize(query = '') {
     .filter(Boolean);
 }
 
+function expandTokens(tokens = []) {
+  const out = new Set(tokens);
+  const q = tokens.join(' ');
+  if (/财经|金融|投资|股市|market|finance|fintech|stock/.test(q)) {
+    ['finance', 'market', 'investing', 'fintech', 'stock', '财经', '金融'].forEach((x) => out.add(x));
+  }
+  if (/加密|区块链|币|crypto|web3|blockchain/.test(q)) {
+    ['crypto', 'blockchain', 'web3', '币圈', '加密'].forEach((x) => out.add(x));
+  }
+  if (/ai|人工智能|模型|llm|agent/.test(q)) {
+    ['ai', 'llm', 'agent', '模型', '人工智能'].forEach((x) => out.add(x));
+  }
+  return [...out];
+}
+
 function scoreSource(source, query) {
-  const tokens = tokenize(query);
+  const tokens = expandTokens(tokenize(query));
   const base = `${source.name} ${source.url} ${(source.tags || []).join(' ')}`.toLowerCase();
   let s = 0;
   for (const token of tokens) {
-    if (base.includes(token)) s += 30;
+    if (base.includes(String(token).toLowerCase())) s += 30;
   }
   return s;
 }
