@@ -14,46 +14,67 @@
     </style>
   </head>
   <body>
-    <h2>Info Push 验收页（GitHub AI 热门项目）</h2>
+    <h2 id="title">Info Push 验收页（GitHub AI 热门项目）</h2>
     <div class="row">
       <button id="loadLatest">查看最新项目</button>
       <button id="loadTrending" style="background:#f59f00">刷新热门项目</button>
       <button id="triggerMsg">触发一条消息</button>
       <button id="loadMsg">刷新消息中心</button>
+      <button id="langToggle" style="background:#12b886">EN</button>
     </div>
     <div id="meta" class="muted"></div>
-    <h3>GitHub Feed</h3>
+    <h3 id="feedTitle">GitHub Feed</h3>
     <div id="feed"></div>
-    <h3>消息中心</h3>
+    <h3 id="msgTitle">消息中心</h3>
     <div id="msg"></div>
 <script>
 const API='/info-api';
 const feedEl=document.getElementById('feed');
 const msgEl=document.getElementById('msg');
 const meta=document.getElementById('meta');
+const langBtn=document.getElementById('langToggle');
+let lang='zh';
+let lastMode='trending';
+
+function t(k){
+  const dict={
+    zh:{title:'Info Push 验收页（GitHub AI 热门项目）',latest:'查看最新项目',trending:'刷新热门项目',trigger:'触发一条消息',refreshMsg:'刷新消息中心',feed:'GitHub Feed',msg:'消息中心',summary:'简介（中文）',empty:'暂无数据',noMsg:'暂无消息'},
+    en:{title:'Info Push Acceptance (GitHub AI Trending)',latest:'Load Latest',trending:'Load Trending',trigger:'Trigger Message',refreshMsg:'Refresh Messages',feed:'GitHub Feed',msg:'Message Center',summary:'Summary (EN)',empty:'No data',noMsg:'No messages'}
+  };
+  return dict[lang][k] || k;
+}
+
+function applyLang(){
+  document.getElementById('title').textContent=t('title');
+  document.getElementById('loadLatest').textContent=t('latest');
+  document.getElementById('loadTrending').textContent=t('trending');
+  document.getElementById('triggerMsg').textContent=t('trigger');
+  document.getElementById('loadMsg').textContent=t('refreshMsg');
+  document.getElementById('feedTitle').textContent=t('feed');
+  document.getElementById('msgTitle').textContent=t('msg');
+  langBtn.textContent=lang==='zh'?'EN':'中';
+}
+
 async function loadFeed(mode='latest'){
+  lastMode=mode;
   const path = mode==='trending' ? '/v1/sources/github/trending?limit=10' : '/v1/sources/github/latest?limit=10';
   const r=await fetch(`${API}${path}`); const d=await r.json();
   meta.textContent=`mode=${d.mode||mode} provider=${d.provider||'-'} live=${String(d.live)} items=${(d.items||[]).length}`;
-  const toChineseSummary = (text='') => {
-    const s = String(text || '').trim();
-    if (!s) return '暂无简介';
-    const hasChinese = /[\u4e00-\u9fa5]/.test(s);
-    if (hasChinese) return s;
-    return `这是一个 GitHub 项目：${s}`;
-  };
-  feedEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div><strong>${i.title}</strong></div><div class='summary'>简介（中文）：${i.summaryZh || toChineseSummary(i.summary)}</div><div class='muted'>⭐${i.stars??0} · ${i.language||'-'} · ${i.updatedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a></div>`).join('')||'<div class="card">暂无数据</div>';
+  feedEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div><strong>${i.title}</strong></div><div class='summary'>${t('summary')}：${lang==='zh' ? (i.summaryZh||i.summary||'暂无简介') : (i.summary||'No summary')}</div><div class='muted'>⭐${i.stars??0} · ${i.language||'-'} · ${i.updatedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a></div>`).join('')||`<div class="card">${t('empty')}</div>`;
 }
 async function loadMsg(){
   const r=await fetch(`${API}/v1/messages?limit=20`); const d=await r.json();
-  msgEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div>${i.title}</div><div class='summary'>${i.body||''}</div><div class='muted'>${i.createdAt}</div></div>`).join('')||'<div class="card">暂无消息</div>';
+  msgEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div>${i.title}</div><div class='summary'>${i.body||''}</div><div class='muted'>${i.createdAt}</div></div>`).join('')||`<div class="card">${t('noMsg')}</div>`;
 }
 async function trigger(){await fetch(`${API}/v1/push/trigger`,{method:'POST'}); await loadMsg();}
 document.getElementById('loadLatest').onclick=()=>loadFeed('latest');
 document.getElementById('loadTrending').onclick=()=>loadFeed('trending');
 document.getElementById('loadMsg').onclick=loadMsg;
 document.getElementById('triggerMsg').onclick=trigger;
-loadFeed('trending');loadMsg();
+langBtn.onclick=async ()=>{lang = lang==='zh'?'en':'zh'; applyLang(); await loadFeed(lastMode); await loadMsg();};
+applyLang();
+loadFeed('trending');
+loadMsg();
 </script>
   </body>
 </html>
