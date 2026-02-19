@@ -12,6 +12,9 @@
       .muted{color:#9fb0df;font-size:12px}
       .summary{margin-top:6px;line-height:1.5;color:#d6e2ff}
       .status{margin-top:8px;color:#74c0fc;font-size:12px}
+      .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:rgba(17,25,54,.96);border:1px solid #3b5bdb;color:#eaf0ff;padding:10px 14px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:all .2s ease;z-index:99}
+      .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+      .fav-home-btn.done{background:#2b8a3e}
     </style>
   </head>
   <body>
@@ -44,6 +47,7 @@
 
     <h3 id="msgTitle">消息中心</h3>
     <div id="msg"></div>
+    <div id="toast" class="toast"></div>
 <script>
 const API='/info-api';
 const feedEl=document.getElementById('feed');
@@ -52,6 +56,7 @@ const meta=document.getElementById('meta');
 const langBtn=document.getElementById('langToggle');
 const sourceButtonsEl=document.getElementById('sourceButtons');
 const sourceStatusEl=document.getElementById('sourceStatus');
+const toastEl=document.getElementById('toast');
 let lang='zh';
 let lastMode='trending';
 let currentSourceId='';
@@ -75,18 +80,39 @@ function applyLang(){
   langBtn.textContent=lang==='zh'?'EN':'中';
 }
 
+let toastTimer;
+function showToast(text){
+  toastEl.textContent = text;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>toastEl.classList.remove('show'), 1600);
+}
+
+function markFavoriteDone(btn){
+  btn.classList.add('done');
+  btn.textContent = '已收藏';
+  btn.disabled = true;
+}
+
+function bindFavoriteButtons(){
+  document.querySelectorAll('.fav-home-btn').forEach((b)=>b.onclick=async()=>{
+    const item = JSON.parse(decodeURIComponent(b.dataset.item||'{}'));
+    const r = await fetch(`${API}/v1/favorites`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(item) });
+    const d = await r.json();
+    const message = d.duplicated ? '该条目已收藏' : '收藏成功';
+    sourceStatusEl.textContent = message;
+    markFavoriteDone(b);
+    showToast(message);
+  });
+}
+
 async function loadGithubFeed(mode='latest'){
   lastMode=mode;
   const path = mode==='trending' ? '/v1/sources/github/trending?limit=20' : '/v1/sources/github/latest?limit=20';
   const r=await fetch(`${API}${path}`); const d=await r.json();
   meta.textContent=`mode=${d.mode||mode} provider=${d.provider||'-'} live=${String(d.live)} items=${(d.items||[]).length}`;
   feedEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div><strong>${i.title}</strong></div><div class='summary'>${t('summary')}：${lang==='zh' ? (i.summaryZh||i.summary||'暂无简介') : (i.summary||'No summary')}</div><div class='muted'>⭐${i.stars??0} · ${i.language||'-'} · ${i.updatedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a><div style='margin-top:8px'><button class='fav-home-btn' data-item='${encodeURIComponent(JSON.stringify(i))}' style='background:#e67700'>收藏</button></div></div>`).join('')||`<div class="card">${t('empty')}</div>`;
-  document.querySelectorAll('.fav-home-btn').forEach((b)=>b.onclick=async()=>{
-    const item = JSON.parse(decodeURIComponent(b.dataset.item||'{}'));
-    const r = await fetch(`${API}/v1/favorites`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(item) });
-    const d = await r.json();
-    sourceStatusEl.textContent = d.duplicated ? '该条目已收藏' : '收藏成功';
-  });
+  bindFavoriteButtons();
 }
 
 async function loadHomeSources(){
@@ -112,12 +138,7 @@ async function viewSource(sourceId){
   sourceStatusEl.textContent = `抓取完成：新增 ${cd.added ?? 0} 条，当前展示 ${items.length} 条`;
   meta.textContent = `mode=source sourceId=${sourceId} items=${items.length}`;
   feedEl.innerHTML = items.map(i=>`<div class='card'><div><strong>${i.title}</strong></div><div class='summary'>${i.summary||''}</div><div class='muted'>${i.publishedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a><div style='margin-top:8px'><button class='fav-home-btn' data-item='${encodeURIComponent(JSON.stringify(i))}' style='background:#e67700'>收藏</button></div></div>`).join('') || `<div class='card'>${t('empty')}</div>`;
-  document.querySelectorAll('.fav-home-btn').forEach((b)=>b.onclick=async()=>{
-    const item = JSON.parse(decodeURIComponent(b.dataset.item||'{}'));
-    const r = await fetch(`${API}/v1/favorites`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(item) });
-    const d = await r.json();
-    sourceStatusEl.textContent = d.duplicated ? '该条目已收藏' : '收藏成功';
-  });
+  bindFavoriteButtons();
   await loadHomeSources();
 }
 
