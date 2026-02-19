@@ -122,10 +122,13 @@ fun SourcesScreen(
         item { OutlinedTextField(value = tags, onValueChange = { tags = it }, label = { Text("标签") }, modifier = Modifier.fillMaxWidth()) }
         item {
             Button(onClick = {
-                viewModel.createSource(SourceDraft(name = name, url = url, type = type, tags = tags))
-                name = ""
-                url = ""
-                tags = ""
+                val draft = SourceDraft(name = name.trim(), url = url.trim(), type = type.trim(), tags = tags.trim())
+                viewModel.createSource(draft)
+                if (draft.name.isNotBlank() && draft.url.isNotBlank()) {
+                    name = ""
+                    url = ""
+                    tags = ""
+                }
             }) { Text("新增信息源") }
         }
 

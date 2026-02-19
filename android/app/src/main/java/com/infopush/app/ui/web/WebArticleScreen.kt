@@ -231,7 +231,11 @@ private fun shareLink(context: Context, title: String, url: String) {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, text)
     }
-    context.startActivity(Intent.createChooser(intent, "分享链接"))
+    runCatching {
+        context.startActivity(Intent.createChooser(intent, "分享链接"))
+    }.onFailure {
+        Toast.makeText(context, "无法分享链接", Toast.LENGTH_SHORT).show()
+    }
 }
 
 private fun copyLink(context: Context, url: String) {
