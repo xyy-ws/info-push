@@ -11,12 +11,26 @@
       button{padding:8px 10px;border:0;border-radius:8px;background:#4f7cff;color:#fff;cursor:pointer;margin-right:6px}
       .grid{display:grid;grid-template-columns:1fr;gap:12px}
       .muted{color:#9fb0df;font-size:12px}
+      .status{color:#74c0fc;font-size:12px;margin-top:6px}
       @media (min-width:980px){.grid{grid-template-columns:1fr 1fr}}
     </style>
   </head>
   <body>
     <h2>信息源管理页（CRUD + 启用停用）</h2>
+
     <div class="card">
+      <h3 style="margin-top:0">AI 搜索信息源（确认后添加）</h3>
+      <div>
+        <input id="query" placeholder="输入需求，例如：AI coding、LLM、agent、AIGC" value="AI 热门技术资讯" style="min-width:340px" />
+        <button id="discover" style="background:#7048e8">AI 搜索</button>
+      </div>
+      <div id="discoverMeta" class="muted"></div>
+      <div id="discoverStatus" class="status"></div>
+      <div id="candidates"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">手动新增信息源</h3>
       <input id="name" placeholder="名称" value="GitHub AI 热门" />
       <input id="url" placeholder="URL" value="https://github.com/topics/ai" style="min-width:320px" />
       <input id="type" placeholder="类型(github/rss/social)" value="github" />
@@ -30,7 +44,7 @@
         <div id="sources"></div>
       </div>
       <div>
-        <h3>推送条目（点击信息源查看）</h3>
+        <h3>推送条目（点击信息源自动抓取并显示）</h3>
         <div id="items"></div>
       </div>
     </div>
@@ -39,16 +53,41 @@
 const API='/info-api';
 const sourcesEl=document.getElementById('sources');
 const itemsEl=document.getElementById('items');
+const candidatesEl=document.getElementById('candidates');
+const discoverMetaEl=document.getElementById('discoverMeta');
+const discoverStatusEl=document.getElementById('discoverStatus');
 let currentSourceId='';
+let candidates=[];
+
+function renderCandidates(){
+  candidatesEl.innerHTML = candidates.map((s, idx)=>`<div class='card'><div><strong>${s.name}</strong> <span class='muted'>(${s.type})</span></div><div class='muted'>${s.url}</div><div>${s.reason||''}</div><div style='margin-top:8px'><button data-idx='${idx}' class='add-candidate' style='background:#2b8a3e'>添加该信息源</button></div></div>`).join('') || '<div class="card">暂无候选源</div>';
+  document.querySelectorAll('.add-candidate').forEach(btn=>btn.onclick=async ()=>{
+    const item = candidates[Number(btn.dataset.idx)];
+    if(!item) return;
+    const r = await fetch(`${API}/v1/sources`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ ...item, fetchMode:'hybrid', enabled:true }) });
+    const d = await r.json();
+    discoverStatusEl.textContent = d.duplicated ? '该信息源已存在，已刷新列表。' : '添加成功，已刷新列表。';
+    await loadSources();
+  });
+}
+
+async function discoverSources(){
+  const query = document.getElementById('query').value.trim() || 'AI';
+  const r = await fetch(`${API}/v1/ai/discover-sources`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ query, limit: 8 }) });
+  const d = await r.json();
+  candidates = d.items || [];
+  discoverMetaEl.textContent = `discover_mode=${d.mode||'-'} query=${d.query||query} candidates=${candidates.length}`;
+  discoverStatusEl.textContent = '';
+  renderCandidates();
+}
 
 async function loadSources(){
   const r = await fetch(`${API}/v1/sources`);
   const d = await r.json();
   const list = d.items || [];
-  sourcesEl.innerHTML = list.map(s=>`<div class='card'><div><strong>${s.name}</strong> <span class='muted'>(${s.type})</span></div><div class='muted'>${s.url}</div><div class='muted'>enabled=${s.enabled} lastItemAt=${s.lastItemAt||'-'}</div><div style='margin-top:8px'><button data-id='${s.id}' class='view'>查看条目</button><button data-id='${s.id}' class='collect' style='background:#f59f00'>抓取</button><button data-id='${s.id}' class='toggle' style='background:#2b8a3e'>${s.enabled?'停用':'启用'}</button><button data-id='${s.id}' class='del' style='background:#e03131'>删除</button></div></div>`).join('') || '<div class="card">暂无信息源</div>';
+  sourcesEl.innerHTML = list.map(s=>`<div class='card'><div><strong>${s.name}</strong> <span class='muted'>(${s.type})</span></div><div class='muted'>${s.url}</div><div class='muted'>enabled=${s.enabled} lastItemAt=${s.lastItemAt||'-'}</div><div style='margin-top:8px'><button data-id='${s.id}' class='view'>查看条目</button><button data-id='${s.id}' class='toggle' style='background:#2b8a3e'>${s.enabled?'停用':'启用'}</button><button data-id='${s.id}' class='del' style='background:#e03131'>删除</button></div></div>`).join('') || '<div class="card">暂无信息源</div>';
 
-  document.querySelectorAll('.view').forEach(b=>b.onclick=()=>loadItems(b.dataset.id));
-  document.querySelectorAll('.collect').forEach(b=>b.onclick=()=>collectOne(b.dataset.id));
+  document.querySelectorAll('.view').forEach(b=>b.onclick=()=>viewWithAutoCollect(b.dataset.id));
   document.querySelectorAll('.toggle').forEach(b=>b.onclick=()=>toggleOne(b.dataset.id));
   document.querySelectorAll('.del').forEach(b=>b.onclick=()=>deleteOne(b.dataset.id));
 }
@@ -58,7 +97,13 @@ async function loadItems(sourceId){
   const r = await fetch(`${API}/v1/sources/${encodeURIComponent(sourceId)}/items?limit=20`);
   const d = await r.json();
   const items = d.items || [];
-  itemsEl.innerHTML = items.map(i=>`<div class='card'><div><strong>${i.title}</strong></div><div>${i.summary||''}</div><div class='muted'>${i.publishedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a></div>`).join('') || '<div class="card">暂无条目，请先点“抓取”</div>';
+  itemsEl.innerHTML = items.map(i=>`<div class='card'><div><strong>${i.title}</strong></div><div>${i.summary||''}</div><div class='muted'>${i.publishedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a></div>`).join('') || '<div class="card">暂无条目</div>';
+}
+
+async function viewWithAutoCollect(id){
+  await fetch(`${API}/v1/sources/${encodeURIComponent(id)}/collect?limit=20`, { method:'POST' });
+  await loadSources();
+  await loadItems(id);
 }
 
 async function createOne(){
@@ -71,12 +116,6 @@ async function createOne(){
   };
   await fetch(`${API}/v1/sources`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) });
   await loadSources();
-}
-
-async function collectOne(id){
-  await fetch(`${API}/v1/sources/${encodeURIComponent(id)}/collect?limit=20`, { method:'POST' });
-  await loadSources();
-  await loadItems(id);
 }
 
 async function toggleOne(id){
@@ -95,6 +134,7 @@ async function deleteOne(id){
 
 document.getElementById('create').onclick=createOne;
 document.getElementById('refresh').onclick=loadSources;
+document.getElementById('discover').onclick=discoverSources;
 loadSources();
 </script>
   </body>
