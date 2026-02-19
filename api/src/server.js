@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { URL } from 'node:url';
 import { ingestAndRank } from './ingestion.js';
-import { fetchLatestAiRepos, fetchTrendingAiRepos } from './github-source.js';
+import { fetchLatestAiRepos, fetchTrendingAiRepos, fetchTrendingReposByKeyword } from './github-source.js';
 import { discoverSources } from './ai-discovery.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -110,7 +110,9 @@ async function fetchSourceItems(source, limit = 20) {
   const normalizedSource = { enabled: true, fetchMode: 'hybrid', ...source };
 
   if ((normalizedSource.url || '').includes('github.com') || normalizedSource.type === 'github') {
-    const result = await fetchTrendingAiRepos(limit);
+    const m = (normalizedSource.url || '').match(/topics\/([a-zA-Z0-9_-]+)/i);
+    const keyword = m?.[1] || (normalizedSource.tags && normalizedSource.tags[0]) || normalizedSource.name || 'ai';
+    const result = await fetchTrendingReposByKeyword(keyword, limit);
     return (result.items || []).slice(0, limit).map((it) => ({
       title: it.title,
       summary: it.summaryZh || it.summary || '暂无简介',
@@ -215,7 +217,8 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/v1/sources/github/trending') {
     const limit = Number(url.searchParams.get('limit') || '10');
-    const result = await fetchTrendingAiRepos(limit);
+    const keyword = String(url.searchParams.get('keyword') || 'ai');
+    const result = keyword === 'ai' ? await fetchTrendingAiRepos(limit) : await fetchTrendingReposByKeyword(keyword, limit);
     return json(res, 200, result);
   }
 

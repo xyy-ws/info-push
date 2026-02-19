@@ -60,34 +60,49 @@ async function queryGithub(query, limit = 10) {
   return items;
 }
 
-function fallbackItem(kind) {
+function fallbackItem(kind, keyword = 'ai') {
   return {
     id: `gh-fallback-${kind}`,
     source: 'github',
-    title: `fallback/${kind}-ai-repo`,
+    title: `fallback/${kind}-${keyword}-repo`,
     summary: `Fallback ${kind} item when GitHub API is unavailable or rate-limited.`,
-    summaryZh: `这是 ${kind} 模式的降级数据，用于在 GitHub 接口限流时保持页面可用。`,
-    url: 'https://github.com/topics/ai',
+    summaryZh: `这是 ${kind} 模式（关键词：${keyword}）的降级数据，用于在 GitHub 接口限流时保持页面可用。`,
+    url: `https://github.com/search?q=${encodeURIComponent(keyword)}`,
     stars: 0,
     updatedAt: new Date().toISOString(),
     language: null
   };
 }
 
-export async function fetchLatestAiRepos(limit = 10) {
+export async function fetchLatestReposByKeyword(keyword = 'ai', limit = 10) {
+  const k = String(keyword || 'ai').trim() || 'ai';
   try {
-    const items = await queryGithub('ai in:name,description,readme sort:updated-desc', limit);
-    return { items, provider: 'github', live: true, mode: 'latest' };
+    const items = await queryGithub(`${k} in:name,description,readme sort:updated-desc`, limit);
+    return { items, provider: 'github', live: true, mode: 'latest', keyword: k };
   } catch (error) {
-    return { provider: 'github', live: false, mode: 'latest', error: String(error?.message || error), items: [fallbackItem('latest')] };
+    return { provider: 'github', live: false, mode: 'latest', keyword: k, error: String(error?.message || error), items: [fallbackItem('latest', k)] };
   }
 }
 
-export async function fetchTrendingAiRepos(limit = 10) {
+export async function fetchTrendingReposByKeyword(keyword = 'ai', limit = 10) {
+  const k = String(keyword || 'ai').trim() || 'ai';
   try {
-    const items = await queryGithub('topic:ai sort:stars-desc', limit);
-    return { items, provider: 'github', live: true, mode: 'trending' };
-  } catch (error) {
-    return { provider: 'github', live: false, mode: 'trending', error: String(error?.message || error), items: [fallbackItem('trending')] };
+    const items = await queryGithub(`topic:${k} sort:stars-desc`, limit);
+    return { items, provider: 'github', live: true, mode: 'trending', keyword: k };
+  } catch {
+    try {
+      const items = await queryGithub(`${k} sort:stars-desc`, limit);
+      return { items, provider: 'github', live: true, mode: 'trending', keyword: k };
+    } catch (error) {
+      return { provider: 'github', live: false, mode: 'trending', keyword: k, error: String(error?.message || error), items: [fallbackItem('trending', k)] };
+    }
   }
+}
+
+export async function fetchLatestAiRepos(limit = 10) {
+  return fetchLatestReposByKeyword('ai', limit);
+}
+
+export async function fetchTrendingAiRepos(limit = 10) {
+  return fetchTrendingReposByKeyword('ai', limit);
 }

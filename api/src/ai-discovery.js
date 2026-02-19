@@ -1,22 +1,62 @@
 const DEFAULT_SOURCES = [
   { type: 'github', name: 'GitHub Trending AI', url: 'https://github.com/topics/ai', tags: ['github', 'ai', 'trending'] },
-  { type: 'github', name: 'GitHub Topic: llm', url: 'https://github.com/topics/llm', tags: ['github', 'llm'] },
-  { type: 'rss', name: 'Hugging Face Blog', url: 'https://huggingface.co/blog/feed.xml', tags: ['ml', 'models'] },
-  { type: 'rss', name: 'OpenAI News', url: 'https://openai.com/news/rss.xml', tags: ['openai'] },
-  { type: 'rss', name: 'Google AI Blog', url: 'https://blog.google/technology/ai/rss/', tags: ['google', 'ai'] },
-  { type: 'social', name: 'Reddit /r/MachineLearning', url: 'https://www.reddit.com/r/MachineLearning/.rss', tags: ['reddit', 'research'] },
-  { type: 'social', name: 'YouTube AI Topic', url: 'https://www.youtube.com/results?search_query=AI', tags: ['youtube', 'ai'] }
+  { type: 'github', name: 'GitHub Trending Finance', url: 'https://github.com/topics/finance', tags: ['github', 'finance', 'fintech'] },
+  { type: 'github', name: 'GitHub Trending Crypto', url: 'https://github.com/topics/crypto', tags: ['github', 'crypto', 'blockchain'] },
+  { type: 'rss', name: 'Hugging Face Blog', url: 'https://huggingface.co/blog/feed.xml', tags: ['ai', 'ml', 'models'] },
+  { type: 'rss', name: 'OpenAI News', url: 'https://openai.com/news/rss.xml', tags: ['ai', 'openai'] },
+  { type: 'rss', name: 'Google AI Blog', url: 'https://blog.google/technology/ai/rss/', tags: ['ai', 'google'] },
+  { type: 'rss', name: 'CoinDesk RSS', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', tags: ['finance', 'crypto', 'market'] },
+  { type: 'rss', name: 'CNBC Top News RSS', url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html', tags: ['finance', 'market', 'business'] },
+  { type: 'social', name: 'Reddit /r/MachineLearning', url: 'https://www.reddit.com/r/MachineLearning/.rss', tags: ['ai', 'research', 'reddit'] },
+  { type: 'social', name: 'Reddit /r/investing', url: 'https://www.reddit.com/r/investing/.rss', tags: ['finance', 'investing', 'reddit'] }
 ];
 
+function tokenize(query = '') {
+  return String(query)
+    .toLowerCase()
+    .replace(/[\p{P}\p{S}]+/gu, ' ')
+    .split(/\s+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
 function scoreSource(source, query) {
-  const q = String(query || '').toLowerCase();
+  const tokens = tokenize(query);
   const base = `${source.name} ${source.url} ${(source.tags || []).join(' ')}`.toLowerCase();
   let s = 0;
-  for (const token of q.split(/\s+/).filter(Boolean)) {
-    if (base.includes(token)) s += 20;
+  for (const token of tokens) {
+    if (base.includes(token)) s += 30;
   }
-  if (base.includes('ai')) s += 5;
   return s;
+}
+
+function inferGithubTopic(query = '') {
+  const q = String(query || '').toLowerCase();
+  if (/财经|金融|finance|fintech|stock|market|投资/.test(q)) return 'finance';
+  if (/crypto|币|区块链|web3/.test(q)) return 'crypto';
+  if (/医疗|health|bio/.test(q)) return 'health';
+  if (/教育|learn|study|edu/.test(q)) return 'education';
+  if (/agent/.test(q)) return 'agent';
+  if (/llm/.test(q)) return 'llm';
+  return 'ai';
+}
+
+function injectDynamicSources(query) {
+  const topic = inferGithubTopic(query);
+  return [
+    {
+      type: 'github',
+      name: `GitHub Trending: ${topic}`,
+      url: `https://github.com/topics/${topic}`,
+      tags: ['github', topic, 'trending']
+    },
+    {
+      type: 'github',
+      name: `GitHub Search: ${query}`,
+      url: `https://github.com/search?q=${encodeURIComponent(query)}`,
+      tags: ['github', ...tokenize(query)]
+    }
+  ];
 }
 
 async function relayDiscover(query, limit = 8) {
@@ -43,7 +83,7 @@ async function relayDiscover(query, limit = 8) {
     type: it.type || 'custom',
     name: it.name || `Source ${i + 1}`,
     url: it.url || '',
-    reason: it.reason || 'AI 推荐来源',
+    reason: it.reason || `根据“${query}”推荐`,
     tags: it.tags || []
   }));
 }
@@ -60,8 +100,10 @@ export async function discoverSources(query, limit = 8) {
     // fallback below
   }
 
-  const items = DEFAULT_SOURCES
+  const pool = [...injectDynamicSources(q), ...DEFAULT_SOURCES];
+  const ranked = pool
     .map((s) => ({ ...s, score: scoreSource(s, q) }))
+    .filter((s) => s.score > 0 || s.url.toLowerCase().includes(inferGithubTopic(q)))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((s, i) => ({
@@ -73,5 +115,5 @@ export async function discoverSources(query, limit = 8) {
       tags: s.tags || []
     }));
 
-  return { mode: 'fallback', items };
+  return { mode: 'fallback', items: ranked };
 }
