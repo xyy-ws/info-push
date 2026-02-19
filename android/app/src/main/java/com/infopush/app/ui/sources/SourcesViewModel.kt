@@ -6,6 +6,7 @@ import com.infopush.app.data.repo.AiDiscoveredSource
 import com.infopush.app.data.repo.ManualAddSourceResult
 import com.infopush.app.data.repo.RefreshResult
 import com.infopush.app.ui.common.ListUiState
+import com.infopush.app.ui.common.UserFacingError
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -138,7 +139,10 @@ class SourcesViewModel(
                 }
 
                 is RefreshResult.Error -> {
-                    _uiState.value = _uiState.value.copy(loading = false, error = result.message)
+                    _uiState.value = _uiState.value.copy(
+                        loading = false,
+                        error = UserFacingError.format(result.message, fallback = "同步失败")
+                    )
                 }
             }
         }
@@ -156,7 +160,10 @@ class SourcesViewModel(
                 }
 
                 is ManualAddSourceResult.Error -> {
-                    _uiState.value = _uiState.value.copy(error = result.message, notice = null)
+                    _uiState.value = _uiState.value.copy(
+                        error = UserFacingError.format(result.message, fallback = "信息源测试失败"),
+                        notice = null
+                    )
                 }
             }
         }

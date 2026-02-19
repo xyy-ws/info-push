@@ -61,7 +61,7 @@ class SourcesViewModelTest {
         viewModel.createSource(SourceDraft(name = "Tech", url = "https://a.com", type = "rss", tags = "kotlin"))
         advanceUntilIdle()
 
-        assertEquals("403 forbidden", viewModel.uiState.value.error)
+        assertTrue(viewModel.uiState.value.error?.contains("403 forbidden") == true)
         assertEquals(null, viewModel.uiState.value.notice)
     }
 
@@ -86,7 +86,7 @@ class SourcesViewModelTest {
 
         val state = viewModel.uiState.value
         assertFalse(state.loading)
-        assertEquals("network down", state.error)
+        assertTrue(state.error?.contains("network down") == true)
     }
 
     @Test

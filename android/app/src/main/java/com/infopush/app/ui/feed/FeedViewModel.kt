@@ -4,6 +4,7 @@ import com.infopush.app.data.local.entity.SourceEntity
 import com.infopush.app.data.repo.AddFavoriteResult
 import com.infopush.app.data.repo.RefreshResult
 import com.infopush.app.domain.FeedItem
+import com.infopush.app.ui.common.UserFacingError
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -116,7 +117,10 @@ class FeedViewModel(
                 }
 
                 is RefreshResult.Error -> {
-                    _uiState.value = _uiState.value.copy(loading = false, error = result.message)
+                    _uiState.value = _uiState.value.copy(
+                        loading = false,
+                        error = UserFacingError.format(result.message, fallback = "首页同步失败")
+                    )
                 }
             }
         }
@@ -132,7 +136,10 @@ class FeedViewModel(
             _uiState.value = _uiState.value.copy(loading = true, error = null)
             when (val result = refreshSource(sourceId)) {
                 is RefreshResult.Success -> _uiState.value = _uiState.value.copy(loading = false)
-                is RefreshResult.Error -> _uiState.value = _uiState.value.copy(loading = false, error = result.message)
+                is RefreshResult.Error -> _uiState.value = _uiState.value.copy(
+                    loading = false,
+                    error = UserFacingError.format(result.message, fallback = "信息源刷新失败")
+                )
             }
         }
     }

@@ -192,7 +192,7 @@ class InfoPushRepository(
             )
             RefreshResult.Success()
         } catch (t: Throwable) {
-            RefreshResult.Error("信息源刷新失败: ${t.message.orEmpty()}")
+            RefreshResult.Error(parseBackendErrorMessage(t, fallback = "信息源刷新失败"))
         }
     }
 
@@ -392,7 +392,7 @@ class InfoPushRepository(
     }
 
     private suspend fun applySourcesMockFallback(t: Throwable): RefreshResult {
-        if (!enableMockFallback) return RefreshResult.Error("信息源加载失败: ${t.message.orEmpty()}")
+        if (!enableMockFallback) return RefreshResult.Error(parseBackendErrorMessage(t, fallback = "信息源加载失败"))
 
         database.sourceDao().upsertSources(MockData.sources)
         database.sourceDao().upsertSourceItems(MockData.sourceItems)
@@ -413,14 +413,14 @@ class InfoPushRepository(
         return RefreshResult.Success(fromMock = true)
     }
 
-    private fun parseBackendErrorMessage(t: Throwable): String {
+    private fun parseBackendErrorMessage(t: Throwable, fallback: String = "信息源测试失败"): String {
         if (t is HttpException) {
             val body = t.response()?.errorBody()?.string().orEmpty()
             val rawMessage = "\"message\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(body)?.groupValues?.getOrNull(1)
             val rawError = "\"error\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(body)?.groupValues?.getOrNull(1)
-            return rawMessage ?: rawError ?: t.message().ifBlank { "信息源测试失败" }
+            return rawMessage ?: rawError ?: t.message().ifBlank { fallback }
         }
-        return t.message ?: "信息源测试失败"
+        return t.message ?: fallback
     }
 }
 

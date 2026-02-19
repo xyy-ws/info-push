@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.infopush.app.link.LinkOpener
+import com.infopush.app.ui.common.ErrorState
 import com.infopush.app.ui.common.FeedbackSection
 import com.infopush.app.ui.common.LoadingState
 
@@ -75,7 +76,7 @@ fun SourcesScreen(
         item { Button(onClick = viewModel::searchAiSources) { Text("AI 搜索信息源") } }
         if (aiState.loading) item { LoadingState("AI 搜索中...") }
         if (aiState.empty) item { Text("未找到候选信息源") }
-        aiState.error?.let { item { Text(it) } }
+        aiState.error?.let { item { ErrorState(it) } }
 
         items(aiState.results, key = { it.url }) { item ->
             val added = aiState.addedUrls.contains(item.url.trim())
