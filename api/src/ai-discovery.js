@@ -2,13 +2,24 @@ const DEFAULT_SOURCES = [
   { type: 'github', name: 'GitHub Trending AI', url: 'https://github.com/topics/ai', tags: ['github', 'ai', 'trending'] },
   { type: 'github', name: 'GitHub Trending Finance', url: 'https://github.com/topics/finance', tags: ['github', 'finance', 'fintech'] },
   { type: 'github', name: 'GitHub Trending Crypto', url: 'https://github.com/topics/crypto', tags: ['github', 'crypto', 'blockchain'] },
+  { type: 'github', name: 'GitHub Trending Quant', url: 'https://github.com/topics/quant', tags: ['github', 'quant', 'finance'] },
+
   { type: 'rss', name: 'Hugging Face Blog', url: 'https://huggingface.co/blog/feed.xml', tags: ['ai', 'ml', 'models'] },
   { type: 'rss', name: 'OpenAI News', url: 'https://openai.com/news/rss.xml', tags: ['ai', 'openai'] },
   { type: 'rss', name: 'Google AI Blog', url: 'https://blog.google/technology/ai/rss/', tags: ['ai', 'google'] },
+
   { type: 'rss', name: 'CoinDesk RSS', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', tags: ['finance', 'crypto', 'market'] },
+  { type: 'rss', name: 'Cointelegraph RSS', url: 'https://cointelegraph.com/rss', tags: ['finance', 'crypto', 'market'] },
+  { type: 'rss', name: 'Reuters Business RSS', url: 'https://feeds.reuters.com/reuters/businessNews', tags: ['finance', 'business', 'market'] },
+  { type: 'rss', name: 'Reuters World News RSS', url: 'https://feeds.reuters.com/Reuters/worldNews', tags: ['macro', 'market', 'finance'] },
   { type: 'rss', name: 'CNBC Top News RSS', url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html', tags: ['finance', 'market', 'business'] },
+  { type: 'rss', name: 'MarketWatch Top Stories', url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories', tags: ['finance', 'market', 'stock'] },
+  { type: 'rss', name: 'Yahoo Finance', url: 'https://finance.yahoo.com/news/rssindex', tags: ['finance', 'market', 'stock'] },
+
   { type: 'social', name: 'Reddit /r/MachineLearning', url: 'https://www.reddit.com/r/MachineLearning/.rss', tags: ['ai', 'research', 'reddit'] },
-  { type: 'social', name: 'Reddit /r/investing', url: 'https://www.reddit.com/r/investing/.rss', tags: ['finance', 'investing', 'reddit'] }
+  { type: 'social', name: 'Reddit /r/investing', url: 'https://www.reddit.com/r/investing/.rss', tags: ['finance', 'investing', 'reddit'] },
+  { type: 'social', name: 'Reddit /r/stocks', url: 'https://www.reddit.com/r/stocks/.rss', tags: ['finance', 'stocks', 'reddit'] },
+  { type: 'social', name: 'Reddit /r/SecurityAnalysis', url: 'https://www.reddit.com/r/SecurityAnalysis/.rss', tags: ['finance', 'analysis', 'reddit'] }
 ];
 
 function tokenize(query = '') {
@@ -77,6 +88,18 @@ function injectDynamicSources(query) {
       name: `Google News RSS: ${q}`,
       url: `https://news.google.com/rss/search?q=${encodeURIComponent(q)}`,
       tags: ['news', ...tokenize(q)]
+    },
+    {
+      type: 'rss',
+      name: `Google News CN RSS: ${q}`,
+      url: `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans`,
+      tags: ['news', 'cn', ...tokenize(q)]
+    },
+    {
+      type: 'social',
+      name: `Reddit Search RSS: ${q}`,
+      url: `https://www.reddit.com/search.rss?q=${encodeURIComponent(q)}`,
+      tags: ['reddit', ...tokenize(q)]
     }
   ];
 }
