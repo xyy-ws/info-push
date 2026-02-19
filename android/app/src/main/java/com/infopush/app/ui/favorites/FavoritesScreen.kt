@@ -27,25 +27,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.infopush.app.link.LinkOpener
+import com.infopush.app.domain.FeedItem
 import com.infopush.app.ui.common.FeedbackSection
 import com.infopush.app.ui.common.readableTime
 
 @Composable
 fun FavoritesScreen(
     viewModel: FavoritesViewModel,
-    onGoToSettings: () -> Unit
+    onGoToSettings: () -> Unit,
+    onOpenArticle: (FeedItem) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val linkOpener = remember { LinkOpener(context, scope = scope) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { message ->
@@ -96,7 +93,7 @@ fun FavoritesScreen(
                             Text(readableTime(item.publishedAt), style = MaterialTheme.typography.labelMedium)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (item.url.isNotBlank()) {
-                                    OutlinedButton(onClick = { linkOpener.open(item.url) }) {
+                                    OutlinedButton(onClick = { onOpenArticle(item) }) {
                                         Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                                         androidx.compose.foundation.layout.Box(modifier = Modifier.width(6.dp))
                                         Text("打开原文")

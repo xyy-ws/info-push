@@ -187,7 +187,19 @@ fun AppNav() {
             composable(AppRoute.FAVORITES) {
                 FavoritesScreen(
                     viewModel = favoritesViewModel,
-                    onGoToSettings = { navController.navigate(AppRoute.SETTINGS) }
+                    onGoToSettings = { navController.navigate(AppRoute.SETTINGS) },
+                    onOpenArticle = { item ->
+                        navController.navigate(
+                            ArticleRoute.create(
+                                ArticleNavData(
+                                    title = item.title,
+                                    url = item.url,
+                                    sourceId = item.sourceId,
+                                    itemId = item.id
+                                )
+                            )
+                        )
+                    }
                 )
             }
             composable(AppRoute.SETTINGS) {
