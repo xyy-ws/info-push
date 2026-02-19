@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { URL } from 'node:url';
 import { ingestAndRank } from './ingestion.js';
-import { fetchLatestAiRepos } from './github-source.js';
+import { fetchLatestAiRepos, fetchTrendingAiRepos } from './github-source.js';
 
 let feed = ingestAndRank('ai');
 
@@ -44,6 +44,12 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/v1/sources/github/latest') {
     const limit = Number(url.searchParams.get('limit') || '10');
     const result = await fetchLatestAiRepos(limit);
+    return json(res, 200, result);
+  }
+
+  if (req.method === 'GET' && url.pathname === '/v1/sources/github/trending') {
+    const limit = Number(url.searchParams.get('limit') || '10');
+    const result = await fetchTrendingAiRepos(limit);
     return json(res, 200, result);
   }
 
