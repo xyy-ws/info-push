@@ -16,6 +16,8 @@ import kotlinx.coroutines.launch
 
 data class FeedUiState(
     val loading: Boolean = true,
+    val sources: List<SourceEntity> = emptyList(),
+    val selectedSourceId: String? = null,
     val items: List<FeedItem> = emptyList(),
     val error: String? = null,
     val fromMock: Boolean = false,
@@ -31,22 +33,46 @@ class FeedViewModel(
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val _uiState = MutableStateFlow(FeedUiState())
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
+    private val selectedSourceIdFlow = MutableStateFlow<String?>(null)
 
     init {
         scope.launch {
-            observeSources().collectLatest { sources ->
-                val source = sources.firstOrNull()
-                if (source == null) {
-                    _uiState.value = _uiState.value.copy(loading = false, items = emptyList(), sourceName = "")
+            observeSources().collectLatest { allSources ->
+                val sources = allSources.filter { it.enabled }
+                val current = _uiState.value
+                val selectedId = current.selectedSourceId?.takeIf { id -> sources.any { it.id == id } }
+                    ?: sources.firstOrNull()?.id
+                val selectedSource = sources.firstOrNull { it.id == selectedId }
+
+                _uiState.value = current.copy(
+                    loading = false,
+                    sources = sources,
+                    selectedSourceId = selectedId,
+                    sourceName = selectedSource?.name.orEmpty(),
+                    items = if (selectedId == null) emptyList() else current.items
+                )
+                selectedSourceIdFlow.value = selectedId
+            }
+        }
+
+        scope.launch {
+            selectedSourceIdFlow.collectLatest { sourceId ->
+                if (sourceId == null) {
+                    _uiState.value = _uiState.value.copy(loading = false, items = emptyList())
                     return@collectLatest
                 }
-
-                _uiState.value = _uiState.value.copy(sourceName = source.name)
-                observeFeed(source.id).collectLatest { feed ->
+                observeFeed(sourceId).collectLatest { feed ->
                     _uiState.value = _uiState.value.copy(loading = false, items = feed)
                 }
             }
         }
+    }
+
+    fun selectSource(sourceId: String) {
+        if (_uiState.value.selectedSourceId == sourceId) return
+        val source = _uiState.value.sources.firstOrNull { it.id == sourceId } ?: return
+        _uiState.value = _uiState.value.copy(selectedSourceId = sourceId, sourceName = source.name, items = emptyList())
+        selectedSourceIdFlow.value = sourceId
     }
 
     fun reload() {
