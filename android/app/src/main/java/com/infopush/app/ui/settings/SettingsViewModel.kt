@@ -28,18 +28,34 @@ class SettingsViewModel(
         _uiState.value = _uiState.value.copy(jsonText = value)
     }
 
-    fun exportData() {
+    fun updateMessage(message: String) {
+        _uiState.value = _uiState.value.copy(message = message)
+    }
+
+    fun prepareExport(onSuccess: (String) -> Unit = {}) {
         scope.launch {
             runCatching { exportLocalJson() }
-                .onSuccess { _uiState.value = _uiState.value.copy(jsonText = it, message = "导出成功") }
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(jsonText = it, message = "导出成功")
+                    onSuccess(it)
+                }
                 .onFailure { _uiState.value = _uiState.value.copy(message = "导出失败: ${it.message}") }
         }
     }
 
     fun importData(mode: ImportMode) {
+        importFromJson(_uiState.value.jsonText, mode)
+    }
+
+    fun importFromJson(json: String, mode: ImportMode) {
         scope.launch {
-            runCatching { importLocalJson(_uiState.value.jsonText, mode) }
-                .onSuccess { _uiState.value = _uiState.value.copy(message = "导入成功(${mode.name.lowercase()})") }
+            runCatching { importLocalJson(json, mode) }
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(
+                        jsonText = json,
+                        message = "导入成功(${mode.name.lowercase()})"
+                    )
+                }
                 .onFailure { _uiState.value = _uiState.value.copy(message = "导入失败: ${it.message}") }
         }
     }

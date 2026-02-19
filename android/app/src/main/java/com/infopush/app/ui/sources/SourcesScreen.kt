@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -46,11 +50,15 @@ fun SourcesScreen(
     val linkOpener = remember { LinkOpener(context, scope = scope) }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.Start
     ) {
-        item { Text("信息源") }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))) {
+                Text("信息源", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+            }
+        }
 
         item {
             OutlinedTextField(
@@ -67,15 +75,17 @@ fun SourcesScreen(
 
         items(aiState.results, key = { it.url }) { item ->
             val added = aiState.addedUrls.contains(item.url.trim())
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("${item.name} (${item.type})")
-                    Text(item.url)
-                    OutlinedButton(onClick = { linkOpener.open(item.url) }) { Text("打开链接") }
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${item.name} (${item.type})", style = MaterialTheme.typography.titleMedium)
+                    Text(item.url, style = MaterialTheme.typography.bodySmall)
                     Text("推荐理由: ${item.reason.ifBlank { "-" }}")
-                }
-                Button(onClick = { viewModel.addDiscoveredSource(item) }, enabled = !added) {
-                    Text(if (added) "已添加" else "一键添加")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { linkOpener.open(item.url) }) { Text("打开链接") }
+                        Button(onClick = { viewModel.addDiscoveredSource(item) }, enabled = !added) {
+                            Text(if (added) "已添加" else "一键添加")
+                        }
+                    }
                 }
             }
         }
@@ -120,27 +130,33 @@ fun SourcesScreen(
         }
 
         items(filteredSources, key = { it.id }) { source ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("${source.name} (${source.type})")
-                    Text(source.url)
-                    if (source.url.isNotBlank()) {
-                        OutlinedButton(onClick = { linkOpener.open(source.url) }) { Text("打开链接") }
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("${source.name} (${source.type})", style = MaterialTheme.typography.titleMedium)
+                        Text(source.url, style = MaterialTheme.typography.bodySmall)
+                        Text("tags: ${source.tags.ifBlank { "-" }}")
+                        Text(if (source.enabled) "状态: 已启用" else "状态: 已禁用")
+                        if (source.url.isNotBlank()) {
+                            OutlinedButton(onClick = { linkOpener.open(source.url) }) { Text("打开链接") }
+                        }
                     }
-                    Text("tags: ${source.tags.ifBlank { "-" }}")
-                    Text(if (source.enabled) "状态: 已启用" else "状态: 已禁用")
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Button(onClick = { viewModel.toggleSource(source) }) {
-                        Text(if (source.enabled) "禁用" else "启用")
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { viewModel.toggleSource(source) }) {
+                            Text(if (source.enabled) "禁用" else "启用")
+                        }
+                        OutlinedButton(onClick = { viewModel.removeSource(source.id) }) { Text("删除") }
                     }
-                    Button(onClick = { viewModel.removeSource(source.id) }) { Text("删除") }
                 }
             }
         }
 
         item { if (state.fromMock) Text("当前显示 mock 数据") }
-        item { Button(onClick = viewModel::manualSync) { Text("手动同步远端") } }
-        item { Button(onClick = onGoToFavorites) { Text("去收藏") } }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = viewModel::manualSync) { Text("手动同步远端") }
+                OutlinedButton(onClick = onGoToFavorites) { Text("去收藏") }
+            }
+        }
     }
 }

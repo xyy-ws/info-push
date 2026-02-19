@@ -18,6 +18,7 @@ import com.infopush.app.domain.FeedItem
 import com.infopush.app.domain.ImportExportUseCase
 import com.infopush.app.domain.ImportMode
 import com.infopush.app.domain.InfoMessage
+import com.infopush.app.link.LinkNormalizer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -52,27 +53,42 @@ class InfoPushRepository(
             AiDiscoverSourcesRequest(query = normalized, keyword = normalized)
         )
         val candidates = if (response.items.isNotEmpty()) response.items else response.sources
-        return candidates.map {
-            AiDiscoveredSource(
-                name = it.name,
-                url = it.url,
-                type = it.type.orEmpty().ifBlank { "rss" },
-                reason = it.reason.orEmpty()
+        val dedup = linkedMapOf<String, AiDiscoveredSource>()
+        candidates.forEach {
+            val rawUrl = it.url.trim()
+            val normalizedUrl = LinkNormalizer.normalize(rawUrl) ?: rawUrl
+            dedup.putIfAbsent(
+                normalizedUrl,
+                AiDiscoveredSource(
+                    name = it.name,
+                    url = rawUrl,
+                    type = it.type.orEmpty().ifBlank { "rss" },
+                    reason = it.reason.orEmpty()
+                )
             )
         }
+        return dedup.values.toList()
     }
 
     suspend fun addAiSourceToLocal(candidate: AiDiscoveredSource): AddSourceResult {
-        val normalizedUrl = candidate.url.trim()
-        if (normalizedUrl.isBlank()) return AddSourceResult.Invalid("URL 不能为空")
-        val duplicated = database.sourceDao().getSourceByUrl(normalizedUrl) != null
+        val rawUrl = candidate.url.trim()
+        if (rawUrl.isBlank()) return AddSourceResult.Invalid("URL 不能为空")
+        val normalizedUrl = LinkNormalizer.normalize(rawUrl)
+
+        val allLocalSources = database.sourceDao().listSources()
+        val duplicated = allLocalSources.any { local ->
+            val localRaw = local.url.trim()
+            localRaw == rawUrl || (
+                normalizedUrl != null && LinkNormalizer.normalize(localRaw) == normalizedUrl
+                )
+        }
         if (duplicated) return AddSourceResult.Duplicated
 
         database.sourceDao().upsertSource(
             SourceEntity(
                 id = "local-${UUID.randomUUID()}",
-                name = candidate.name.trim().ifBlank { normalizedUrl },
-                url = normalizedUrl,
+                name = candidate.name.trim().ifBlank { rawUrl },
+                url = rawUrl,
                 type = candidate.type.trim().ifBlank { "rss" },
                 tags = candidate.reason.trim(),
                 enabled = true

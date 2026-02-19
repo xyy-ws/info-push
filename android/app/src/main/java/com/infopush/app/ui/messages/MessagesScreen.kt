@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -24,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.infopush.app.link.LinkOpener
 import com.infopush.app.ui.common.FeedbackSection
+import com.infopush.app.ui.common.readableTime
 
 @Composable
 fun MessagesScreen(
@@ -36,11 +39,21 @@ fun MessagesScreen(
     val linkOpener = remember { LinkOpener(context, scope = scope) }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.Start
     ) {
-        Text("消息中心", style = MaterialTheme.typography.headlineSmall)
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+            )
+        ) {
+            Text(
+                "消息中心",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+            )
+        }
 
         FeedbackSection(
             loading = state.loading,
@@ -63,6 +76,7 @@ fun MessagesScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(item.title, style = MaterialTheme.typography.titleMedium)
+                            Text(readableTime(item.createdAt), style = MaterialTheme.typography.labelMedium)
                             if (item.body.isNotBlank()) {
                                 Text(item.body, style = MaterialTheme.typography.bodyMedium)
                             }

@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.infopush.app.domain.FeedItem
 import com.infopush.app.link.LinkOpener
+import com.infopush.app.ui.common.readableTime
 
 @Composable
 fun FeedScreen(
@@ -251,7 +252,7 @@ private fun FeedItemCard(item: FeedItem, onOpen: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = item.publishedAt.ifBlank { "时间未知" },
+                    text = readableTime(item.publishedAt),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
