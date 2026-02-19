@@ -9,31 +9,38 @@ import java.net.URLDecoder
 import java.util.concurrent.TimeUnit
 
 interface LinkResolver {
-    suspend fun resolve(url: String, timeoutMs: Long = 2000): String?
+    suspend fun resolve(url: String, timeoutMs: Long = 1200): String?
 }
 
 class HttpLinkResolver : LinkResolver {
     private val unwrapKeys = setOf("url", "target", "u", "to", "redirect", "redirect_url")
 
+    private val client = OkHttpClient.Builder()
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .connectTimeout(800, TimeUnit.MILLISECONDS)
+        .readTimeout(800, TimeUnit.MILLISECONDS)
+        .writeTimeout(800, TimeUnit.MILLISECONDS)
+        .build()
+
     override suspend fun resolve(url: String, timeoutMs: Long): String? = withContext(Dispatchers.IO) {
         val seed = unwrapCommonJumpUrl(url)
         val normalizedSeed = LinkNormalizer.normalize(seed) ?: return@withContext null
         runCatching {
-            val client = OkHttpClient.Builder()
-                .followRedirects(false)
-                .followSslRedirects(false)
-                .callTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-                .build()
-
             var current = normalizedSeed
-            repeat(5) {
+            repeat(4) {
                 val request = Request.Builder().url(current).get().build()
-                client.newCall(request).execute().use { response ->
-                    val location = response.header("Location")
-                    if (location.isNullOrBlank()) return@runCatching current
-                    val next = resolveAgainst(current, location)
-                    current = LinkNormalizer.normalize(next) ?: return@runCatching current
-                }
+                client.newBuilder()
+                    .callTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .build()
+                    .newCall(request)
+                    .execute()
+                    .use { response ->
+                        val location = response.header("Location")
+                        if (location.isNullOrBlank()) return@runCatching current
+                        val next = resolveAgainst(current, location)
+                        current = LinkNormalizer.normalize(next) ?: return@runCatching current
+                    }
             }
             current
         }.getOrNull()
@@ -68,7 +75,7 @@ class LinkProcessor(
         val normalized = LinkNormalizer.normalize(rawUrl)
             ?: return PreparedLink.Invalid("链接无效：$rawUrl")
 
-        val resolved = runCatching { resolver.resolve(normalized, 2000) }.getOrNull()
+        val resolved = runCatching { resolver.resolve(normalized, 1200) }.getOrNull()
         val finalUrl = LinkNormalizer.normalize(resolved ?: normalized) ?: normalized
         return PreparedLink.Valid(finalUrl = finalUrl, fallbackUrl = normalized)
     }

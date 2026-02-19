@@ -1,5 +1,6 @@
 package com.infopush.app.ui.favorites
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -21,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -42,6 +45,12 @@ fun FavoritesScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val linkOpener = remember { LinkOpener(context, scope = scope) }
+
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -81,11 +90,18 @@ fun FavoritesScreen(
                         ) {
                             Text(item.title, style = MaterialTheme.typography.titleMedium)
                             Text(readableTime(item.publishedAt), style = MaterialTheme.typography.labelMedium)
-                            if (item.url.isNotBlank()) {
-                                OutlinedButton(onClick = { linkOpener.open(item.url) }) {
-                                    Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (item.url.isNotBlank()) {
+                                    OutlinedButton(onClick = { linkOpener.open(item.url) }) {
+                                        Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        androidx.compose.foundation.layout.Box(modifier = Modifier.width(6.dp))
+                                        Text("打开原文")
+                                    }
+                                }
+                                OutlinedButton(onClick = { viewModel.deleteFavorite(item.id) }) {
+                                    Icon(Icons.Outlined.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
                                     androidx.compose.foundation.layout.Box(modifier = Modifier.width(6.dp))
-                                    Text("打开原文")
+                                    Text("删除收藏")
                                 }
                             }
                         }

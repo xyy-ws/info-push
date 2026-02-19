@@ -98,7 +98,8 @@ fun AppNav() {
     val favoritesViewModel = remember {
         FavoritesViewModel(
             observeFavorites = { repository.observeFavorites() },
-            refreshFavorites = { repository.refreshFavorites() }
+            refreshFavorites = { repository.refreshFavorites() },
+            removeFavorite = { itemId -> repository.removeFavorite(itemId) }
         )
     }
     val messagesViewModel = remember {
@@ -128,6 +129,7 @@ fun AppNav() {
     val hideBottomBar = currentRoute?.startsWith(ArticleRoute.WEB) == true || currentRoute == AppRoute.MESSAGES
 
     Scaffold(
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
         bottomBar = {
             if (!hideBottomBar) {
                 NavigationBar {
