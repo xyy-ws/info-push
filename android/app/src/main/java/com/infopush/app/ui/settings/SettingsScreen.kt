@@ -25,11 +25,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.infopush.app.domain.ImportMode
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+
+private const val JsonPreviewMaxChars = 600
 
 @Composable
 fun SettingsScreen(
@@ -38,8 +42,10 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     var exportContent by remember { mutableStateOf<String?>(null) }
     var pendingImportMode by remember { mutableStateOf(ImportMode.MERGE) }
+    var previewExpanded by remember { mutableStateOf(false) }
 
     val createFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -73,6 +79,13 @@ fun SettingsScreen(
             .onFailure { viewModel.updateMessage("导入失败: ${it.message}") }
     }
 
+    val hasLargePreview = state.jsonText.length > JsonPreviewMaxChars
+    val previewText = if (previewExpanded || !hasLargePreview) {
+        state.jsonText
+    } else {
+        state.jsonText.take(JsonPreviewMaxChars) + "\n...（已截断）"
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -98,14 +111,39 @@ fun SettingsScreen(
             value = state.jsonText,
             onValueChange = viewModel::updateJsonText,
             modifier = Modifier.fillMaxWidth(),
-            minLines = 8,
-            label = { Text("JSON 数据") }
+            minLines = 6,
+            maxLines = 10,
+            label = { Text("JSON 数据（可编辑，用于文本导入）") }
         )
+
+        if (state.jsonText.isNotBlank()) {
+            OutlinedTextField(
+                value = previewText,
+                onValueChange = {},
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 4,
+                maxLines = if (previewExpanded) 14 else 6,
+                readOnly = true,
+                label = { Text("导出 JSON 预览") }
+            )
+            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (hasLargePreview) {
+                    OutlinedButton(onClick = { previewExpanded = !previewExpanded }) {
+                        Text(if (previewExpanded) "收起预览" else "展开预览")
+                    }
+                }
+                OutlinedButton(onClick = {
+                    clipboardManager.setText(AnnotatedString(state.jsonText))
+                    viewModel.updateMessage("JSON 已复制")
+                }) { Text("复制 JSON") }
+            }
+        }
 
         Button(onClick = onGoToMessages) { Text("消息中心") }
 
         Button(onClick = {
             viewModel.prepareExport { json ->
+                previewExpanded = false
                 exportContent = json
                 val fileName = "info-push-export-${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))}.json"
                 createFileLauncher.launch(fileName)

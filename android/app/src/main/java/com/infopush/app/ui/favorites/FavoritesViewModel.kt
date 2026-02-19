@@ -27,7 +27,7 @@ class FavoritesViewModel(
     private val _uiState = MutableStateFlow(ListUiState<FeedItem>())
     val uiState: StateFlow<ListUiState<FeedItem>> = _uiState.asStateFlow()
 
-    private val _events = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 4)
+    private val _events = MutableSharedFlow<String>(replay = 0, extraBufferCapacity = 4)
     val events: SharedFlow<String> = _events.asSharedFlow()
 
     init {

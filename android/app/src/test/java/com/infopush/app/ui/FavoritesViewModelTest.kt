@@ -6,6 +6,7 @@ import com.infopush.app.ui.favorites.FavoritesViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -41,10 +42,11 @@ class FavoritesViewModelTest {
         advanceUntilIdle()
         assertEquals(1, viewModel.uiState.value.items.size)
 
+        val feedback = async { viewModel.events.first() }
         viewModel.deleteFavorite(item.id)
         advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.items.isEmpty())
-        assertEquals("已删除收藏", viewModel.events.first())
+        assertEquals("已删除收藏", feedback.await())
     }
 }
