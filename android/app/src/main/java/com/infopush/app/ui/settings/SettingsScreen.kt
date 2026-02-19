@@ -37,8 +37,7 @@ private const val JsonPreviewMaxChars = 600
 
 @Composable
 fun SettingsScreen(
-    viewModel: SettingsViewModel,
-    onGoToMessages: () -> Unit
+    viewModel: SettingsViewModel
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -139,7 +138,6 @@ fun SettingsScreen(
             }
         }
 
-        Button(onClick = onGoToMessages) { Text("消息中心") }
 
         Button(onClick = {
             viewModel.prepareExport { json ->

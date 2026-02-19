@@ -91,7 +91,9 @@ fun AppNav() {
             refreshSources = { repository.refreshSourcesAndFeed() },
             addSource = { draft: SourceDraft -> repository.addSource(draft.name, draft.url, draft.type, draft.tags) },
             setSourceEnabled = { sourceId, enabled -> repository.setSourceEnabled(sourceId, enabled) },
+            setSourcesEnabled = { sourceIds, enabled -> repository.setSourcesEnabled(sourceIds, enabled) },
             deleteSource = { sourceId -> repository.deleteSource(sourceId) },
+            deleteSources = { sourceIds -> repository.deleteSources(sourceIds) },
             discoverSources = { keyword -> repository.searchAiSources(keyword) },
             addAiSourceToLocal = { source -> repository.addAiSourceToLocal(source) }
         )
@@ -100,7 +102,8 @@ fun AppNav() {
         FavoritesViewModel(
             observeFavorites = { repository.observeFavorites() },
             refreshFavorites = { repository.refreshFavorites() },
-            removeFavorite = { itemId -> repository.removeFavorite(itemId) }
+            removeFavorite = { itemId -> repository.removeFavorite(itemId) },
+            initialQuery = ""
         )
     }
     val messagesViewModel = remember {
@@ -203,10 +206,7 @@ fun AppNav() {
                 )
             }
             composable(AppRoute.SETTINGS) {
-                SettingsScreen(
-                    viewModel = settingsViewModel,
-                    onGoToMessages = { navController.navigate(AppRoute.MESSAGES) }
-                )
+                SettingsScreen(viewModel = settingsViewModel)
             }
             composable(AppRoute.MESSAGES) {
                 MessagesScreen(

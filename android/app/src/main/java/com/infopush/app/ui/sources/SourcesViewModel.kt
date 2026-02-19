@@ -39,7 +39,9 @@ class SourcesViewModel(
     private val refreshSources: suspend () -> RefreshResult,
     private val addSource: suspend (SourceDraft) -> ManualAddSourceResult,
     private val setSourceEnabled: suspend (sourceId: String, enabled: Boolean) -> Unit,
+    private val setSourcesEnabled: suspend (sourceIds: List<String>, enabled: Boolean) -> Unit,
     private val deleteSource: suspend (sourceId: String) -> Unit,
+    private val deleteSources: suspend (sourceIds: List<String>) -> Unit,
     private val discoverSources: suspend (keyword: String) -> List<AiDiscoveredSource>,
     private val addAiSourceToLocal: suspend (AiDiscoveredSource) -> AddSourceResult,
     dispatcher: CoroutineDispatcher = Dispatchers.Main
@@ -54,10 +56,15 @@ class SourcesViewModel(
     private val _sourceFilter = MutableStateFlow("")
     val sourceFilter: StateFlow<String> = _sourceFilter.asStateFlow()
 
+    private val _selectedSourceIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedSourceIds: StateFlow<Set<String>> = _selectedSourceIds.asStateFlow()
+
     init {
         scope.launch {
             observeSources().collectLatest { sources ->
                 val sourceUrls = sources.map { it.url.trim() }.filter { it.isNotBlank() }.toSet()
+                val existingIds = sources.map { it.id }.toSet()
+                _selectedSourceIds.value = _selectedSourceIds.value.filter { it in existingIds }.toSet()
                 _uiState.value = _uiState.value.copy(loading = false, items = sources)
                 _aiSearchState.value = _aiSearchState.value.copy(addedUrls = sourceUrls)
             }
@@ -75,6 +82,35 @@ class SourcesViewModel(
             source.name.lowercase().contains(keyword) ||
                 source.url.lowercase().contains(keyword) ||
                 source.tags.lowercase().contains(keyword)
+        }
+    }
+
+    fun toggleSelect(sourceId: String) {
+        _selectedSourceIds.value = _selectedSourceIds.value.toMutableSet().apply {
+            if (contains(sourceId)) remove(sourceId) else add(sourceId)
+        }
+    }
+
+    fun clearSelection() {
+        _selectedSourceIds.value = emptySet()
+    }
+
+    fun bulkSetEnabled(enabled: Boolean) {
+        val ids = _selectedSourceIds.value.toList()
+        if (ids.isEmpty()) return
+        scope.launch {
+            setSourcesEnabled(ids, enabled)
+            _uiState.value = _uiState.value.copy(notice = if (enabled) "已批量启用" else "已批量禁用", error = null)
+        }
+    }
+
+    fun bulkDelete() {
+        val ids = _selectedSourceIds.value.toList()
+        if (ids.isEmpty()) return
+        scope.launch {
+            deleteSources(ids)
+            _selectedSourceIds.value = emptySet()
+            _uiState.value = _uiState.value.copy(notice = "已批量删除", error = null)
         }
     }
 

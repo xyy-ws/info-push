@@ -21,11 +21,15 @@ class FavoritesViewModel(
     private val observeFavorites: () -> Flow<List<FeedItem>>,
     private val refreshFavorites: suspend () -> RefreshResult,
     private val removeFavorite: suspend (String) -> Unit,
+    initialQuery: String = "",
     dispatcher: CoroutineDispatcher = Dispatchers.Main
 ) {
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val _uiState = MutableStateFlow(ListUiState<FeedItem>())
     val uiState: StateFlow<ListUiState<FeedItem>> = _uiState.asStateFlow()
+
+    private val _query = MutableStateFlow(initialQuery)
+    val query: StateFlow<String> = _query.asStateFlow()
 
     private val _events = MutableSharedFlow<String>(replay = 0, extraBufferCapacity = 4)
     val events: SharedFlow<String> = _events.asSharedFlow()
@@ -35,6 +39,18 @@ class FavoritesViewModel(
             observeFavorites().collectLatest { favorites ->
                 _uiState.value = _uiState.value.copy(loading = false, items = favorites)
             }
+        }
+    }
+
+    fun updateQuery(input: String) {
+        _query.value = input
+    }
+
+    fun filteredItems(): List<FeedItem> {
+        val keyword = _query.value.trim().lowercase()
+        if (keyword.isBlank()) return _uiState.value.items
+        return _uiState.value.items.filter {
+            it.title.lowercase().contains(keyword) || it.url.lowercase().contains(keyword)
         }
     }
 

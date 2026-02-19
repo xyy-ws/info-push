@@ -39,6 +39,12 @@ interface SourceDao {
     @Query("DELETE FROM sources WHERE id = :sourceId")
     suspend fun deleteSource(sourceId: String)
 
+    @Query("DELETE FROM sources WHERE id IN (:sourceIds)")
+    suspend fun deleteSources(sourceIds: List<String>)
+
+    @Query("UPDATE sources SET enabled = :enabled WHERE id IN (:sourceIds)")
+    suspend fun setSourcesEnabled(sourceIds: List<String>, enabled: Boolean)
+
     @Query("DELETE FROM source_items WHERE sourceId = :sourceId")
     suspend fun deleteSourceItemsBySourceId(sourceId: String)
 

@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -41,15 +43,34 @@ fun SourcesScreen(
     val state by viewModel.uiState.collectAsState()
     val aiState by viewModel.aiSearchState.collectAsState()
     val sourceFilter by viewModel.sourceFilter.collectAsState()
+    val selectedIds by viewModel.selectedSourceIds.collectAsState()
     val filteredSources = remember(state.items, sourceFilter) { viewModel.filteredSources() }
 
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("rss") }
     var tags by remember { mutableStateOf("") }
+    var showBatchDeleteConfirm by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val linkOpener = remember { LinkOpener(context, scope = scope) }
+
+    if (showBatchDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showBatchDeleteConfirm = false },
+            title = { Text("确认批量删除") },
+            text = { Text("将删除已选中的 ${selectedIds.size} 个信息源，此操作不可撤销。") },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.bulkDelete()
+                    showBatchDeleteConfirm = false
+                }) { Text("确认删除") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showBatchDeleteConfirm = false }) { Text("取消") }
+            }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -95,18 +116,10 @@ fun SourcesScreen(
             }
         }
 
-        item {
-            OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("名称") }, modifier = Modifier.fillMaxWidth())
-        }
-        item {
-            OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("URL") }, modifier = Modifier.fillMaxWidth())
-        }
-        item {
-            OutlinedTextField(value = type, onValueChange = { type = it }, label = { Text("类型") }, modifier = Modifier.fillMaxWidth())
-        }
-        item {
-            OutlinedTextField(value = tags, onValueChange = { tags = it }, label = { Text("标签") }, modifier = Modifier.fillMaxWidth())
-        }
+        item { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("名称") }, modifier = Modifier.fillMaxWidth()) }
+        item { OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("URL") }, modifier = Modifier.fillMaxWidth()) }
+        item { OutlinedTextField(value = type, onValueChange = { type = it }, label = { Text("类型") }, modifier = Modifier.fillMaxWidth()) }
+        item { OutlinedTextField(value = tags, onValueChange = { tags = it }, label = { Text("标签") }, modifier = Modifier.fillMaxWidth()) }
         item {
             Button(onClick = {
                 viewModel.createSource(SourceDraft(name = name, url = url, type = type, tags = tags))
@@ -125,6 +138,17 @@ fun SourcesScreen(
             )
         }
 
+        if (selectedIds.isNotEmpty()) {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { viewModel.bulkSetEnabled(true) }) { Text("批量启用(${selectedIds.size})") }
+                    OutlinedButton(onClick = { viewModel.bulkSetEnabled(false) }) { Text("批量禁用") }
+                    OutlinedButton(onClick = { showBatchDeleteConfirm = true }) { Text("批量删除") }
+                    OutlinedButton(onClick = viewModel::clearSelection) { Text("清空选择") }
+                }
+            }
+        }
+
         item {
             FeedbackSection(
                 loading = state.loading,
@@ -138,13 +162,28 @@ fun SourcesScreen(
         items(filteredSources, key = { it.id }) { source ->
             ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("${source.name} (${source.type})", style = MaterialTheme.typography.titleMedium)
-                        Text(source.url, style = MaterialTheme.typography.bodySmall)
-                        Text("tags: ${source.tags.ifBlank { "-" }}")
-                        Text(if (source.enabled) "状态: 已启用" else "状态: 已禁用")
-                        if (source.url.isNotBlank()) {
-                            OutlinedButton(onClick = { linkOpener.open(source.url) }) { Text("打开链接") }
+                    Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Checkbox(
+                            checked = selectedIds.contains(source.id),
+                            onCheckedChange = { viewModel.toggleSelect(source.id) }
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("${source.name} (${source.type})", style = MaterialTheme.typography.titleMedium)
+                            Text(source.url, style = MaterialTheme.typography.bodySmall)
+                            Text("tags: ${source.tags.ifBlank { "-" }}")
+                            Text(if (source.enabled) "状态: 已启用" else "状态: 已禁用")
+                            val healthText = when (source.lastSyncStatus) {
+                                "success" -> "健康检查: 最近成功"
+                                "failed" -> "健康检查: 最近失败"
+                                else -> "健康检查: 暂无数据"
+                            }
+                            Text(healthText)
+                            if (!source.lastSyncError.isNullOrBlank()) {
+                                Text("最近错误: ${source.lastSyncError.take(80)}")
+                            }
+                            if (source.url.isNotBlank()) {
+                                OutlinedButton(onClick = { linkOpener.open(source.url) }) { Text("打开链接") }
+                            }
                         }
                     }
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {

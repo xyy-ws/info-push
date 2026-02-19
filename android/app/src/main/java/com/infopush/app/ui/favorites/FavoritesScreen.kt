@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,11 +22,13 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -42,6 +44,8 @@ fun FavoritesScreen(
     onOpenArticle: (FeedItem) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
+    val query by viewModel.query.collectAsState()
+    val filtered = remember(state.items, query) { viewModel.filteredItems() }
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -70,21 +74,28 @@ fun FavoritesScreen(
             )
         }
 
+        OutlinedTextField(
+            value = query,
+            onValueChange = viewModel::updateQuery,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("搜索收藏（标题 / URL）") }
+        )
+
         FeedbackSection(
             loading = state.loading,
             error = state.error?.ifBlank { "加载失败，请稍后重试" },
             notice = null,
-            isEmpty = state.items.isEmpty(),
-            emptyText = "暂无收藏内容",
+            isEmpty = filtered.isEmpty(),
+            emptyText = if (state.items.isEmpty()) "暂无收藏内容" else "暂无匹配的收藏",
             loadingText = "正在加载收藏..."
         )
 
-        if (!state.loading && state.error == null && state.items.isNotEmpty()) {
+        if (!state.loading && state.error == null && filtered.isNotEmpty()) {
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(state.items, key = { it.id }) { item ->
+                items(filtered, key = { it.id }) { item ->
                     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                         Column(
                             modifier = Modifier.fillMaxWidth().padding(12.dp),

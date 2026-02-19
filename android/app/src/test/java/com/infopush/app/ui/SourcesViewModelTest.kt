@@ -29,7 +29,9 @@ class SourcesViewModelTest {
             refreshSources = { RefreshResult.Success() },
             addSource = { ManualAddSourceResult.Success },
             setSourceEnabled = { _, _ -> },
+            setSourcesEnabled = { _, _ -> },
             deleteSource = {},
+            deleteSources = {},
             discoverSources = { emptyList() },
             addAiSourceToLocal = { AddSourceResult.Success },
             dispatcher = dispatcher
@@ -52,7 +54,9 @@ class SourcesViewModelTest {
             refreshSources = { RefreshResult.Success() },
             addSource = { ManualAddSourceResult.Error("403 forbidden") },
             setSourceEnabled = { _, _ -> },
+            setSourcesEnabled = { _, _ -> },
             deleteSource = {},
+            deleteSources = {},
             discoverSources = { emptyList() },
             addAiSourceToLocal = { AddSourceResult.Success },
             dispatcher = dispatcher
@@ -75,7 +79,9 @@ class SourcesViewModelTest {
             refreshSources = { RefreshResult.Error("network down") },
             addSource = { ManualAddSourceResult.Success },
             setSourceEnabled = { _, _ -> },
+            setSourcesEnabled = { _, _ -> },
             deleteSource = {},
+            deleteSources = {},
             discoverSources = { emptyList() },
             addAiSourceToLocal = { AddSourceResult.Success },
             dispatcher = dispatcher
@@ -100,7 +106,9 @@ class SourcesViewModelTest {
             refreshSources = { RefreshResult.Success(fromMock = true) },
             addSource = { ManualAddSourceResult.Success },
             setSourceEnabled = { _, enabled -> toggledEnabled = enabled },
+            setSourcesEnabled = { _, _ -> },
             deleteSource = {},
+            deleteSources = {},
             discoverSources = { emptyList() },
             addAiSourceToLocal = { AddSourceResult.Success },
             dispatcher = dispatcher
@@ -122,7 +130,9 @@ class SourcesViewModelTest {
             refreshSources = { RefreshResult.Success(fromMock = false) },
             addSource = { ManualAddSourceResult.Success },
             setSourceEnabled = { _, _ -> },
+            setSourcesEnabled = { _, _ -> },
             deleteSource = {},
+            deleteSources = {},
             discoverSources = {
                 listOf(AiDiscoveredSource(name = "Tech Daily", url = "https://x.com/rss", type = "rss", reason = "matches keyword"))
             },
@@ -150,7 +160,9 @@ class SourcesViewModelTest {
             refreshSources = { RefreshResult.Success(fromMock = false) },
             addSource = { ManualAddSourceResult.Success },
             setSourceEnabled = { _, _ -> },
+            setSourcesEnabled = { _, _ -> },
             deleteSource = {},
+            deleteSources = {},
             discoverSources = { emptyList() },
             addAiSourceToLocal = {
                 addTriggered = true
@@ -179,7 +191,9 @@ class SourcesViewModelTest {
             refreshSources = { RefreshResult.Success(fromMock = false) },
             addSource = { ManualAddSourceResult.Success },
             setSourceEnabled = { _, _ -> },
+            setSourcesEnabled = { _, _ -> },
             deleteSource = {},
+            deleteSources = {},
             discoverSources = { emptyList() },
             addAiSourceToLocal = { AddSourceResult.Success },
             dispatcher = dispatcher
@@ -202,7 +216,9 @@ class SourcesViewModelTest {
             refreshSources = { RefreshResult.Success(fromMock = false) },
             addSource = { ManualAddSourceResult.Success },
             setSourceEnabled = { _, _ -> },
+            setSourcesEnabled = { _, _ -> },
             deleteSource = {},
+            deleteSources = {},
             discoverSources = { emptyList() },
             addAiSourceToLocal = { AddSourceResult.Invalid("source_probe_http_failed: detail=http_status_403") },
             dispatcher = dispatcher

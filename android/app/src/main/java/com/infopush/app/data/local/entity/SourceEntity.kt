@@ -11,5 +11,8 @@ data class SourceEntity(
     val type: String = "rss",
     val tags: String = "",
     val enabled: Boolean = true,
-    val backendSourceId: String? = null
+    val backendSourceId: String? = null,
+    val lastSyncStatus: String = "unknown",
+    val lastSyncAt: String? = null,
+    val lastSyncError: String? = null
 )

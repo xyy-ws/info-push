@@ -22,6 +22,7 @@ import com.infopush.app.link.LinkNormalizer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import retrofit2.HttpException
+import java.time.Instant
 import java.util.UUID
 
 class InfoPushRepository(
@@ -68,7 +69,10 @@ class InfoPushRepository(
                     type = trimmedType,
                     tags = trimmedTags,
                     enabled = true,
-                    backendSourceId = backendId
+                    backendSourceId = backendId,
+                    lastSyncStatus = "success",
+                    lastSyncAt = Instant.now().toString(),
+                    lastSyncError = null
                 )
             )
             ManualAddSourceResult.Success
@@ -139,7 +143,10 @@ class InfoPushRepository(
                     type = candidate.type.trim().ifBlank { "rss" },
                     tags = candidate.reason.trim(),
                     enabled = true,
-                    backendSourceId = backendId
+                    backendSourceId = backendId,
+                    lastSyncStatus = "success",
+                    lastSyncAt = Instant.now().toString(),
+                    lastSyncError = null
                 )
             )
             AddSourceResult.Success
@@ -151,6 +158,11 @@ class InfoPushRepository(
     suspend fun setSourceEnabled(sourceId: String, enabled: Boolean) {
         val source = database.sourceDao().getSourceById(sourceId) ?: return
         database.sourceDao().upsertSource(source.copy(enabled = enabled))
+    }
+
+    suspend fun setSourcesEnabled(sourceIds: List<String>, enabled: Boolean) {
+        if (sourceIds.isEmpty()) return
+        database.sourceDao().setSourcesEnabled(sourceIds, enabled)
     }
 
     suspend fun getSelectedSourceId(): String? {
@@ -169,6 +181,14 @@ class InfoPushRepository(
     suspend fun deleteSource(sourceId: String) {
         database.sourceDao().deleteSourceItemsBySourceId(sourceId)
         database.sourceDao().deleteSource(sourceId)
+    }
+
+    suspend fun deleteSources(sourceIds: List<String>) {
+        if (sourceIds.isEmpty()) return
+        sourceIds.forEach { sourceId ->
+            database.sourceDao().deleteSourceItemsBySourceId(sourceId)
+        }
+        database.sourceDao().deleteSources(sourceIds)
     }
 
     fun observeFeed(sourceId: String): Flow<List<FeedItem>> {
@@ -195,7 +215,9 @@ class InfoPushRepository(
             val backendSourceId = resolveBackendSourceId(localSource)
             val collect = api.collectSource(backendSourceId, limit = 20)
             if (!collect.ok) {
-                return RefreshResult.Error(collect.message ?: collect.error ?: "远端拉取失败")
+                val error = collect.message ?: collect.error ?: "远端拉取失败"
+                updateSourceSyncState(localSource.id, "failed", error)
+                return RefreshResult.Error(error)
             }
             val itemsResponse = api.getSourceItems(backendSourceId, limit = 50)
             database.sourceDao().upsertSourceItems(
@@ -210,25 +232,34 @@ class InfoPushRepository(
                     )
                 }
             )
+            updateSourceSyncState(localSource.id, "success", null)
             RefreshResult.Success()
         } catch (t: Throwable) {
-            RefreshResult.Error(parseBackendErrorMessage(t, fallback = "信息源刷新失败"))
+            val error = parseBackendErrorMessage(t, fallback = "信息源刷新失败")
+            updateSourceSyncState(localSource.id, "failed", error)
+            RefreshResult.Error(error)
         }
     }
 
     suspend fun refreshSourcesAndFeed(): RefreshResult {
         return try {
             val response = api.getHomeSources()
+            val now = Instant.now().toString()
+            val existing = database.sourceDao().listSources().associateBy { it.id }
             database.sourceDao().upsertSources(
                 response.sources.map { source ->
+                    val previous = existing[source.id]
                     SourceEntity(
                         id = source.id,
                         name = source.name,
                         url = source.url.orEmpty(),
                         type = "rss",
                         tags = source.description.orEmpty(),
-                        enabled = true,
-                        backendSourceId = source.id
+                        enabled = previous?.enabled ?: true,
+                        backendSourceId = source.id,
+                        lastSyncStatus = "success",
+                        lastSyncAt = now,
+                        lastSyncError = null
                     )
                 }
             )
@@ -412,7 +443,11 @@ class InfoPushRepository(
     }
 
     private suspend fun applySourcesMockFallback(t: Throwable): RefreshResult {
-        if (!enableMockFallback) return RefreshResult.Error(parseBackendErrorMessage(t, fallback = "信息源加载失败"))
+        val error = parseBackendErrorMessage(t, fallback = "信息源加载失败")
+        database.sourceDao().listSources().forEach { source ->
+            updateSourceSyncState(source.id, "failed", error)
+        }
+        if (!enableMockFallback) return RefreshResult.Error(error)
 
         database.sourceDao().upsertSources(MockData.sources)
         database.sourceDao().upsertSourceItems(MockData.sourceItems)
@@ -431,6 +466,17 @@ class InfoPushRepository(
 
         database.messageDao().upsertAll(MockData.messages)
         return RefreshResult.Success(fromMock = true)
+    }
+
+    private suspend fun updateSourceSyncState(sourceId: String, status: String, error: String?) {
+        val source = database.sourceDao().getSourceById(sourceId) ?: return
+        database.sourceDao().upsertSource(
+            source.copy(
+                lastSyncStatus = status,
+                lastSyncAt = Instant.now().toString(),
+                lastSyncError = error
+            )
+        )
     }
 
     private fun parseBackendErrorMessage(t: Throwable, fallback: String = "信息源测试失败"): String {
