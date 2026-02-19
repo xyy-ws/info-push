@@ -15,12 +15,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -83,11 +86,11 @@ fun FavoritesScreen(
                 modifier = Modifier.weight(1f),
                 label = { Text("搜索收藏（标题 / URL）") }
             )
-            OutlinedButton(onClick = { viewModel.updateQuery(query.trim()) }) {
-                Text("搜索")
+            IconButton(onClick = { viewModel.updateQuery(query) }) {
+                Icon(Icons.Outlined.Search, contentDescription = "搜索")
             }
-            OutlinedButton(onClick = { viewModel.updateQuery("") }) {
-                Text("清空")
+            IconButton(onClick = { viewModel.updateQuery("") }) {
+                Icon(Icons.Outlined.Close, contentDescription = "清空")
             }
         }
 
