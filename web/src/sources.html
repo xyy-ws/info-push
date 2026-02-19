@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>信息源管理</title>
+    <style>
+      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:20px;background:#0b1020;color:#eaf0ff}
+      .card{background:#111936;border:1px solid #24345f;border-radius:10px;padding:10px;margin:8px 0}
+      input{padding:8px;border:1px solid #24345f;border-radius:8px;background:#0f1530;color:#fff;margin-right:8px}
+      button{padding:8px 10px;border:0;border-radius:8px;background:#4f7cff;color:#fff;cursor:pointer;margin-right:6px}
+      .grid{display:grid;grid-template-columns:1fr;gap:12px}
+      .muted{color:#9fb0df;font-size:12px}
+      @media (min-width:980px){.grid{grid-template-columns:1fr 1fr}}
+    </style>
+  </head>
+  <body>
+    <h2>信息源管理页（CRUD + 启用停用）</h2>
+    <div class="card">
+      <input id="name" placeholder="名称" value="GitHub AI 热门" />
+      <input id="url" placeholder="URL" value="https://github.com/topics/ai" style="min-width:320px" />
+      <input id="type" placeholder="类型(github/rss/social)" value="github" />
+      <button id="create">新增信息源</button>
+      <button id="refresh">刷新列表</button>
+    </div>
+
+    <div class="grid">
+      <div>
+        <h3>信息源列表</h3>
+        <div id="sources"></div>
+      </div>
+      <div>
+        <h3>推送条目（点击信息源查看）</h3>
+        <div id="items"></div>
+      </div>
+    </div>
+
+<script>
+const API='/info-api';
+const sourcesEl=document.getElementById('sources');
+const itemsEl=document.getElementById('items');
+let currentSourceId='';
+
+async function loadSources(){
+  const r = await fetch(`${API}/v1/sources`);
+  const d = await r.json();
+  const list = d.items || [];
+  sourcesEl.innerHTML = list.map(s=>`<div class='card'><div><strong>${s.name}</strong> <span class='muted'>(${s.type})</span></div><div class='muted'>${s.url}</div><div class='muted'>enabled=${s.enabled} lastItemAt=${s.lastItemAt||'-'}</div><div style='margin-top:8px'><button data-id='${s.id}' class='view'>查看条目</button><button data-id='${s.id}' class='collect' style='background:#f59f00'>抓取</button><button data-id='${s.id}' class='toggle' style='background:#2b8a3e'>${s.enabled?'停用':'启用'}</button><button data-id='${s.id}' class='del' style='background:#e03131'>删除</button></div></div>`).join('') || '<div class="card">暂无信息源</div>';
+
+  document.querySelectorAll('.view').forEach(b=>b.onclick=()=>loadItems(b.dataset.id));
+  document.querySelectorAll('.collect').forEach(b=>b.onclick=()=>collectOne(b.dataset.id));
+  document.querySelectorAll('.toggle').forEach(b=>b.onclick=()=>toggleOne(b.dataset.id));
+  document.querySelectorAll('.del').forEach(b=>b.onclick=()=>deleteOne(b.dataset.id));
+}
+
+async function loadItems(sourceId){
+  currentSourceId = sourceId;
+  const r = await fetch(`${API}/v1/sources/${encodeURIComponent(sourceId)}/items?limit=20`);
+  const d = await r.json();
+  const items = d.items || [];
+  itemsEl.innerHTML = items.map(i=>`<div class='card'><div><strong>${i.title}</strong></div><div>${i.summary||''}</div><div class='muted'>${i.publishedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a></div>`).join('') || '<div class="card">暂无条目，请先点“抓取”</div>';
+}
+
+async function createOne(){
+  const payload = {
+    name: document.getElementById('name').value.trim() || 'Untitled',
+    url: document.getElementById('url').value.trim(),
+    type: document.getElementById('type').value.trim() || 'custom',
+    fetchMode: 'hybrid',
+    enabled: true
+  };
+  await fetch(`${API}/v1/sources`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) });
+  await loadSources();
+}
+
+async function collectOne(id){
+  await fetch(`${API}/v1/sources/${encodeURIComponent(id)}/collect?limit=20`, { method:'POST' });
+  await loadSources();
+  await loadItems(id);
+}
+
+async function toggleOne(id){
+  const r = await fetch(`${API}/v1/sources`); const d = await r.json();
+  const s = (d.items||[]).find(x=>x.id===id);
+  if(!s) return;
+  await fetch(`${API}/v1/sources/${encodeURIComponent(id)}`, { method:'PUT', headers:{'content-type':'application/json'}, body: JSON.stringify({ enabled: !s.enabled }) });
+  await loadSources();
+}
+
+async function deleteOne(id){
+  await fetch(`${API}/v1/sources/${encodeURIComponent(id)}`, { method:'DELETE' });
+  if(currentSourceId===id) itemsEl.innerHTML='';
+  await loadSources();
+}
+
+document.getElementById('create').onclick=createOne;
+document.getElementById('refresh').onclick=loadSources;
+loadSources();
+</script>
+  </body>
+</html>

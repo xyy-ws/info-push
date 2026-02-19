@@ -6,12 +6,14 @@ import { discoverSources } from './ai-discovery.js';
 
 let feed = ingestAndRank('ai');
 let sources = [];
+let sourceItems = [];
 
 let messages = [];
 let preferences = {
   topics: ['ai'],
   pushTimes: ['09:00', '20:00'],
-  channels: ['in-app', 'push']
+  channels: ['in-app', 'push'],
+  refreshMinutes: 10
 };
 
 function json(res, status, data) {
@@ -31,6 +33,66 @@ function readJsonBody(req) {
       }
     });
   });
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function sortedSources() {
+  return [...sources].sort((a, b) => {
+    const bt = b.lastItemAt ? new Date(b.lastItemAt).getTime() : 0;
+    const at = a.lastItemAt ? new Date(a.lastItemAt).getTime() : 0;
+    return bt - at;
+  });
+}
+
+function upsertSourceItem(item) {
+  const exists = sourceItems.some((x) => x.sourceId === item.sourceId && x.url === item.url);
+  if (!exists) sourceItems = [item, ...sourceItems].slice(0, 5000);
+  return !exists;
+}
+
+async function collectSource(source, limit = 20) {
+  if (!source?.enabled) return { ok: true, added: 0, items: [] };
+
+  let items = [];
+  if ((source.url || '').includes('github.com') || source.type === 'github') {
+    const result = await fetchTrendingAiRepos(limit);
+    items = (result.items || []).slice(0, limit).map((it) => ({
+      id: `itm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      sourceId: source.id,
+      title: it.title,
+      summary: it.summaryZh || it.summary || '暂无简介',
+      url: it.url,
+      publishedAt: it.updatedAt || nowIso(),
+      createdAt: nowIso()
+    }));
+  } else {
+    items = [
+      {
+        id: `itm-${Date.now()}-seed`,
+        sourceId: source.id,
+        title: `${source.name} 示例条目`,
+        summary: '该来源已接入，后续将按混合抓取策略获取真实内容。',
+        url: source.url,
+        publishedAt: nowIso(),
+        createdAt: nowIso()
+      }
+    ];
+  }
+
+  let added = 0;
+  for (const item of items) {
+    if (upsertSourceItem(item)) added += 1;
+  }
+
+  const latest = items[0]?.publishedAt || nowIso();
+  sources = sources.map((s) =>
+    s.id === source.id ? { ...s, lastFetchedAt: nowIso(), lastItemAt: latest, updatedAt: nowIso() } : s
+  );
+
+  return { ok: true, added, items };
 }
 
 const server = http.createServer(async (req, res) => {
@@ -55,6 +117,10 @@ const server = http.createServer(async (req, res) => {
       limit,
       preferences
     });
+  }
+
+  if (req.method === 'GET' && url.pathname === '/v1/sources/home') {
+    return json(res, 200, { items: sortedSources() });
   }
 
   if (req.method === 'GET' && url.pathname === '/v1/sources/github/latest') {
@@ -82,7 +148,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && url.pathname === '/v1/sources') {
-    return json(res, 200, { items: sources });
+    return json(res, 200, { items: sortedSources() });
   }
 
   if (req.method === 'POST' && url.pathname === '/v1/sources') {
@@ -95,17 +161,80 @@ const server = http.createServer(async (req, res) => {
         url: payload.url || '',
         reason: payload.reason || '',
         tags: Array.isArray(payload.tags) ? payload.tags : [],
-        createdAt: new Date().toISOString()
+        fetchMode: payload.fetchMode || 'hybrid',
+        enabled: payload.enabled !== false,
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+        lastFetchedAt: null,
+        lastItemAt: null
       };
 
       if (!item.url) return json(res, 400, { ok: false, error: 'url_required' });
       const exists = sources.some((s) => s.url === item.url);
-      if (!exists) sources = [item, ...sources].slice(0, 200);
+      if (!exists) sources = [item, ...sources].slice(0, 500);
 
       return json(res, 200, { ok: true, item, duplicated: exists });
     } catch {
       return json(res, 400, { ok: false, error: 'invalid_json' });
     }
+  }
+
+  const sourceIdMatch = url.pathname.match(/^\/v1\/sources\/([^/]+)$/);
+  if (sourceIdMatch) {
+    const sourceId = decodeURIComponent(sourceIdMatch[1]);
+    const target = sources.find((s) => s.id === sourceId);
+    if (!target) return json(res, 404, { ok: false, error: 'source_not_found' });
+
+    if (req.method === 'PUT') {
+      try {
+        const payload = await readJsonBody(req);
+        sources = sources.map((s) =>
+          s.id === sourceId
+            ? {
+                ...s,
+                name: payload.name ?? s.name,
+                url: payload.url ?? s.url,
+                type: payload.type ?? s.type,
+                tags: Array.isArray(payload.tags) ? payload.tags : s.tags,
+                fetchMode: payload.fetchMode ?? s.fetchMode,
+                enabled: typeof payload.enabled === 'boolean' ? payload.enabled : s.enabled,
+                updatedAt: nowIso()
+              }
+            : s
+        );
+        return json(res, 200, { ok: true });
+      } catch {
+        return json(res, 400, { ok: false, error: 'invalid_json' });
+      }
+    }
+
+    if (req.method === 'DELETE') {
+      sources = sources.filter((s) => s.id !== sourceId);
+      sourceItems = sourceItems.filter((it) => it.sourceId !== sourceId);
+      return json(res, 200, { ok: true });
+    }
+  }
+
+  const sourceItemsMatch = url.pathname.match(/^\/v1\/sources\/([^/]+)\/items$/);
+  if (sourceItemsMatch && req.method === 'GET') {
+    const sourceId = decodeURIComponent(sourceItemsMatch[1]);
+    const limitRaw = Number(url.searchParams.get('limit') || '20');
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(200, Math.floor(limitRaw)) : 20;
+    const items = sourceItems
+      .filter((it) => it.sourceId === sourceId)
+      .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+      .slice(0, limit);
+    return json(res, 200, { items, limit, sourceId });
+  }
+
+  const sourceCollectMatch = url.pathname.match(/^\/v1\/sources\/([^/]+)\/collect$/);
+  if (sourceCollectMatch && req.method === 'POST') {
+    const sourceId = decodeURIComponent(sourceCollectMatch[1]);
+    const source = sources.find((s) => s.id === sourceId);
+    if (!source) return json(res, 404, { ok: false, error: 'source_not_found' });
+    const limit = Number(url.searchParams.get('limit') || '20');
+    const result = await collectSource(source, limit);
+    return json(res, 200, result);
   }
 
   if (req.method === 'GET' && url.pathname === '/v1/messages') {
@@ -135,7 +264,7 @@ const server = http.createServer(async (req, res) => {
       id: `msg-${Date.now()}`,
       title: 'AI push (manual trigger)',
       body: 'MVP trigger endpoint is active.',
-      createdAt: new Date().toISOString()
+      createdAt: nowIso()
     };
     messages = [item, ...messages].slice(0, 50);
     return json(res, 200, { ok: true, message: item });
