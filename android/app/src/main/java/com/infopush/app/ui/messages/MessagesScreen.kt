@@ -2,9 +2,15 @@ package com.infopush.app.ui.messages
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.infopush.app.link.LinkOpener
+import com.infopush.app.ui.common.FeedbackSection
 
 @Composable
 fun MessagesScreen(
@@ -30,27 +37,52 @@ fun MessagesScreen(
 
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.Start
     ) {
-        Text("消息中心")
-        when {
-            state.loading -> Text("加载中...")
-            state.error != null -> Text(state.error ?: "加载失败")
-            state.items.isEmpty() -> Text("暂无消息")
-            else -> state.items.forEach {
-                val maybeLink = extractFirstUrl(it.body) ?: extractFirstUrl(it.title)
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("• ${it.title}")
-                    if (maybeLink != null) {
-                        OutlinedButton(onClick = { linkOpener.open(maybeLink) }) { Text("打开链接") }
+        Text("消息中心", style = MaterialTheme.typography.headlineSmall)
+
+        FeedbackSection(
+            loading = state.loading,
+            error = state.error?.ifBlank { "加载失败，请稍后重试" },
+            isEmpty = state.items.isEmpty(),
+            emptyText = "暂无消息内容",
+            loadingText = "正在加载消息..."
+        )
+
+        if (!state.loading && state.error == null && state.items.isNotEmpty()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(state.items, key = { it.id }) { item ->
+                    val maybeLink = extractFirstUrl(item.body) ?: extractFirstUrl(item.title)
+                    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(item.title, style = MaterialTheme.typography.titleMedium)
+                            if (item.body.isNotBlank()) {
+                                Text(item.body, style = MaterialTheme.typography.bodyMedium)
+                            }
+                            if (maybeLink != null) {
+                                OutlinedButton(onClick = { linkOpener.open(maybeLink) }) { Text("打开链接") }
+                            }
+                        }
                     }
                 }
             }
         }
-        if (state.fromMock) Text("当前显示 mock 数据")
-        Button(onClick = viewModel::reload) { Text("手动同步远端") }
-        Button(onClick = onGoToSettings) { Text("去设置") }
+
+        if (state.fromMock) {
+            Text("当前显示 mock 数据", style = MaterialTheme.typography.bodySmall)
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = viewModel::reload) { Text("同步消息") }
+            OutlinedButton(onClick = onGoToSettings) { Text("去设置") }
+        }
     }
 }
 
