@@ -8,7 +8,7 @@
         android:allowBackup="true"
         android:label="Info Push"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.DeviceDefault.DayNight">
+        android:theme="@style/Theme.InfoPush">
         <activity
             android:name=".MainActivity"
             android:exported="true">
