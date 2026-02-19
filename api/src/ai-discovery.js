@@ -24,13 +24,13 @@ function expandTokens(tokens = []) {
   const out = new Set(tokens);
   const q = tokens.join(' ');
   if (/财经|金融|投资|股市|market|finance|fintech|stock/.test(q)) {
-    ['finance', 'market', 'investing', 'fintech', 'stock', '财经', '金融'].forEach((x) => out.add(x));
+    ['finance', 'market', 'investing', 'fintech', 'stock', 'macro', 'etf', 'quant', '财经', '金融'].forEach((x) => out.add(x));
   }
   if (/加密|区块链|币|crypto|web3|blockchain/.test(q)) {
-    ['crypto', 'blockchain', 'web3', '币圈', '加密'].forEach((x) => out.add(x));
+    ['crypto', 'blockchain', 'web3', 'bitcoin', 'ethereum', '币圈', '加密'].forEach((x) => out.add(x));
   }
   if (/ai|人工智能|模型|llm|agent/.test(q)) {
-    ['ai', 'llm', 'agent', '模型', '人工智能'].forEach((x) => out.add(x));
+    ['ai', 'llm', 'agent', 'machinelearning', 'generativeai', '模型', '人工智能'].forEach((x) => out.add(x));
   }
   return [...out];
 }
@@ -58,6 +58,7 @@ function inferGithubTopic(query = '') {
 
 function injectDynamicSources(query) {
   const topic = inferGithubTopic(query);
+  const q = String(query || '').trim();
   return [
     {
       type: 'github',
@@ -67,9 +68,15 @@ function injectDynamicSources(query) {
     },
     {
       type: 'github',
-      name: `GitHub Search: ${query}`,
-      url: `https://github.com/search?q=${encodeURIComponent(query)}`,
-      tags: ['github', ...tokenize(query)]
+      name: `GitHub Search: ${q}`,
+      url: `https://github.com/search?q=${encodeURIComponent(q)}`,
+      tags: ['github', ...tokenize(q)]
+    },
+    {
+      type: 'rss',
+      name: `Google News RSS: ${q}`,
+      url: `https://news.google.com/rss/search?q=${encodeURIComponent(q)}`,
+      tags: ['news', ...tokenize(q)]
     }
   ];
 }

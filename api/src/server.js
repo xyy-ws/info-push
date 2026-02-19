@@ -226,7 +226,7 @@ const server = http.createServer(async (req, res) => {
     try {
       const payload = await readJsonBody(req);
       const query = String(payload?.query || 'ai');
-      const limit = Number(payload?.limit || 8);
+      const limit = Number(payload?.limit || 20);
       const result = await discoverSources(query, limit);
       return json(res, 200, { ok: true, query, ...result });
     } catch {

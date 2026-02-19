@@ -83,7 +83,7 @@ function renderCandidates(){
 
 async function discoverSources(){
   const query = document.getElementById('query').value.trim() || 'AI';
-  const r = await fetch(`${API}/v1/ai/discover-sources`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ query, limit: 8 }) });
+  const r = await fetch(`${API}/v1/ai/discover-sources`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ query, limit: 20 }) });
   const d = await r.json();
   candidates = d.items || [];
   discoverMetaEl.textContent = `discover_mode=${d.mode||'-'} query=${d.query||query} candidates=${candidates.length}`;
