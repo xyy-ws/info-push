@@ -132,8 +132,16 @@ class InfoPushRepositoryTest {
     }
 
     @Test
-    fun addAiSourceToLocal_shouldDeduplicateByUrl() = runTest {
-        val repository = InfoPushRepository(db, FakeInfoPushApi())
+    fun addAiSourceToLocal_shouldCallBackendThenWriteLocalWithBackendId() = runTest {
+        val repository = InfoPushRepository(
+            db,
+            FakeInfoPushApi(
+                createSourceResponse = CreateSourceResponse(
+                    ok = true,
+                    item = SourceDto(id = "remote-ai-1", name = "Tech Feed", url = "https://example.com/rss")
+                )
+            )
+        )
         val candidate = AiDiscoveredSource(
             name = "Tech Feed",
             url = "https://example.com/rss",
@@ -146,7 +154,30 @@ class InfoPushRepositoryTest {
 
         assertEquals(AddSourceResult.Success, first)
         assertEquals(AddSourceResult.Duplicated, second)
-        assertEquals(1, db.sourceDao().listSources().count { it.url == "https://example.com/rss" })
+        val local = db.sourceDao().listSources().filter { it.url == "https://example.com/rss" }
+        assertEquals(1, local.size)
+        assertEquals("remote-ai-1", local.first().backendSourceId)
+    }
+
+    @Test
+    fun addAiSourceToLocal_backendFailure_shouldNotWriteLocal() = runTest {
+        val repository = InfoPushRepository(
+            db,
+            FakeInfoPushApi(
+                createSourceResponse = CreateSourceResponse(ok = false, message = "source_probe_http_failed: detail=http_status_403")
+            )
+        )
+        val candidate = AiDiscoveredSource(
+            name = "Tech Feed",
+            url = "https://example.com/rss",
+            type = "rss",
+            reason = "AI recommend"
+        )
+
+        val result = repository.addAiSourceToLocal(candidate)
+
+        assertTrue(result is AddSourceResult.Invalid)
+        assertTrue(db.sourceDao().listSources().isEmpty())
     }
 
     @Test

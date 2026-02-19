@@ -117,6 +117,7 @@ class SourcesViewModel(
             when (val result = addAiSourceToLocal(candidate)) {
                 AddSourceResult.Success -> {
                     _aiSearchState.value = _aiSearchState.value.copy(error = null)
+                    _uiState.value = _uiState.value.copy(error = null, notice = "测试通过并已添加")
                 }
 
                 AddSourceResult.Duplicated -> {
@@ -124,7 +125,9 @@ class SourcesViewModel(
                 }
 
                 is AddSourceResult.Invalid -> {
-                    _aiSearchState.value = _aiSearchState.value.copy(error = result.message)
+                    _aiSearchState.value = _aiSearchState.value.copy(
+                        error = UserFacingError.format(result.message, fallback = "信息源测试失败")
+                    )
                 }
             }
         }

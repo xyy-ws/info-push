@@ -115,17 +115,37 @@ class InfoPushRepository(
         }
         if (duplicated) return AddSourceResult.Duplicated
 
-        database.sourceDao().upsertSource(
-            SourceEntity(
-                id = "local-${UUID.randomUUID()}",
-                name = candidate.name.trim().ifBlank { rawUrl },
-                url = rawUrl,
-                type = candidate.type.trim().ifBlank { "rss" },
-                tags = candidate.reason.trim(),
-                enabled = true
+        return try {
+            val createResp = api.createSource(
+                CreateSourceRequest(
+                    name = candidate.name.trim().ifBlank { rawUrl },
+                    url = rawUrl,
+                    type = candidate.type.trim().ifBlank { "rss" },
+                    reason = candidate.reason.trim().ifBlank { null },
+                    enabled = true
+                )
             )
-        )
-        return AddSourceResult.Success
+            val backendId = createResp.item?.id
+            if (!createResp.ok || backendId.isNullOrBlank()) {
+                val reason = createResp.message ?: createResp.error ?: "信息源测试失败"
+                return AddSourceResult.Invalid(reason)
+            }
+
+            database.sourceDao().upsertSource(
+                SourceEntity(
+                    id = "local-${UUID.randomUUID()}",
+                    name = candidate.name.trim().ifBlank { rawUrl },
+                    url = rawUrl,
+                    type = candidate.type.trim().ifBlank { "rss" },
+                    tags = candidate.reason.trim(),
+                    enabled = true,
+                    backendSourceId = backendId
+                )
+            )
+            AddSourceResult.Success
+        } catch (t: Throwable) {
+            AddSourceResult.Invalid(parseBackendErrorMessage(t))
+        }
     }
 
     suspend fun setSourceEnabled(sourceId: String, enabled: Boolean) {

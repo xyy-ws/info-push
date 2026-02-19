@@ -168,4 +168,49 @@ class SourcesViewModelTest {
         assertEquals("该 URL 已存在于本地信息源", viewModel.aiSearchState.value.error)
         assertFalse(addTriggered)
     }
+
+    @Test
+    fun `add discovered source success should expose success notice`() = runTest {
+        val sourceFlow = MutableStateFlow(emptyList<SourceEntity>())
+        val dispatcher = StandardTestDispatcher(testScheduler)
+
+        val viewModel = SourcesViewModel(
+            observeSources = { sourceFlow },
+            refreshSources = { RefreshResult.Success(fromMock = false) },
+            addSource = { ManualAddSourceResult.Success },
+            setSourceEnabled = { _, _ -> },
+            deleteSource = {},
+            discoverSources = { emptyList() },
+            addAiSourceToLocal = { AddSourceResult.Success },
+            dispatcher = dispatcher
+        )
+
+        viewModel.addDiscoveredSource(AiDiscoveredSource("Tech", "https://a.com/rss", "rss", ""))
+        advanceUntilIdle()
+
+        assertEquals("测试通过并已添加", viewModel.uiState.value.notice)
+        assertEquals(null, viewModel.aiSearchState.value.error)
+    }
+
+    @Test
+    fun `add discovered source backend error should be user friendly`() = runTest {
+        val sourceFlow = MutableStateFlow(emptyList<SourceEntity>())
+        val dispatcher = StandardTestDispatcher(testScheduler)
+
+        val viewModel = SourcesViewModel(
+            observeSources = { sourceFlow },
+            refreshSources = { RefreshResult.Success(fromMock = false) },
+            addSource = { ManualAddSourceResult.Success },
+            setSourceEnabled = { _, _ -> },
+            deleteSource = {},
+            discoverSources = { emptyList() },
+            addAiSourceToLocal = { AddSourceResult.Invalid("source_probe_http_failed: detail=http_status_403") },
+            dispatcher = dispatcher
+        )
+
+        viewModel.addDiscoveredSource(AiDiscoveredSource("Tech", "https://a.com/rss", "rss", ""))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.aiSearchState.value.error?.contains("403") == true)
+    }
 }
