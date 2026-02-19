@@ -23,3 +23,20 @@ test('discover-sources: 中文关键词优先返回中文候选', async () => {
     assert.match(url, /^https?:\/\//, `invalid url: ${url}`);
   }
 });
+
+test('discover-sources: 中文加权不应替代基础匹配', async () => {
+  const result = await discoverSources('量化交易', 20);
+
+  assert.equal(result.items.length > 0, true);
+  const joined = result.items.map((item) => `${item.name} ${item.url} ${(item.tags || []).join(' ')}`.toLowerCase());
+  const unrelatedZh = joined.some((text) => text.includes('机器之心') || text.includes('qbitai'));
+  assert.equal(unrelatedZh, false, 'unrelated zh-only ai sources should not be admitted without token match');
+});
+
+test('discover-sources: 常见类目词仍保留合理召回', async () => {
+  const result = await discoverSources('开源 编程', 12);
+
+  assert.equal(result.items.length > 0, true);
+  const joined = result.items.map((item) => `${item.name} ${(item.tags || []).join(' ')}`).join(' ').toLowerCase();
+  assert.equal(/开源|编程|开发|programming|developer/.test(joined), true);
+});

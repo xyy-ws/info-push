@@ -89,7 +89,7 @@ function expandTokens(tokens = []) {
     ['crypto', 'blockchain', 'web3', 'bitcoin', 'ethereum', '币圈', '加密'].forEach((x) => out.add(x));
   }
   if (/ai|人工智能|模型|llm|agent/.test(q)) {
-    ['ai', 'llm', 'agent', 'machinelearning', 'generativeai', '模型', '人工智能'].forEach((x) => out.add(x));
+    ['ai', 'llm', 'agent', 'machinelearning', 'generativeai', '模型', '人工智能', '科技'].forEach((x) => out.add(x));
   }
   if (/编程|开发|技术|程序员|开源|coding|programming|developer/.test(q)) {
     ['开发', '编程', '技术', '开源', 'programming', 'developer'].forEach((x) => out.add(x));
@@ -97,17 +97,29 @@ function expandTokens(tokens = []) {
   return [...out];
 }
 
-function scoreSource(source, query) {
-  const tokens = expandTokens(tokenize(query));
+function getMatchStats(source, query) {
   const base = `${source.name} ${source.url} ${(source.tags || []).join(' ')}`.toLowerCase();
-  let s = 0;
-  for (const token of tokens) {
-    if (base.includes(String(token).toLowerCase())) s += 30;
-  }
+  const rawTokens = tokenize(query);
+  const expanded = expandTokens(rawTokens);
+  const matchedRawTokens = rawTokens.filter((token) => token && base.includes(String(token).toLowerCase()));
+  const matchedExpandedTokens = expanded.filter((token) => token && base.includes(String(token).toLowerCase()));
+  return {
+    rawTokens,
+    matchedRawTokens,
+    matchedExpandedTokens,
+    hasRawMatch: matchedRawTokens.length > 0,
+    hasAnyMatch: matchedExpandedTokens.length > 0
+  };
+}
 
-  if (hasChinese(query)) {
-    if (source.lang === 'zh') s += 80;
-    if ((source.tags || []).some((x) => /中文|china|zh|cn/i.test(String(x)))) s += 30;
+function scoreSource(source, query, stats) {
+  let s = 0;
+  s += stats.matchedRawTokens.length * 40;
+  s += Math.max(0, stats.matchedExpandedTokens.length - stats.matchedRawTokens.length) * 15;
+
+  if (hasChinese(query) && stats.hasAnyMatch) {
+    if (source.lang === 'zh') s += 35;
+    if ((source.tags || []).some((x) => /中文|china|zh|cn/i.test(String(x)))) s += 15;
   }
 
   return s;
@@ -227,10 +239,12 @@ export async function discoverSources(query, limit = 8) {
     ? [...injectDynamicSources(q), ...DEFAULT_ZH_SOURCES, ...DEFAULT_EN_SOURCES]
     : [...injectDynamicSources(q), ...DEFAULT_EN_SOURCES, ...DEFAULT_ZH_SOURCES];
 
-  const topic = inferGithubTopic(q);
   const ranked = dedupeAndValidate(pool)
-    .map((s) => ({ ...s, score: scoreSource(s, q) }))
-    .filter((s) => s.score > 0 || s.url.toLowerCase().includes(topic))
+    .map((s) => {
+      const stats = getMatchStats(s, q);
+      return { ...s, score: scoreSource(s, q, stats), stats };
+    })
+    .filter((s) => s.stats.hasAnyMatch)
     .sort((a, b) => b.score - a.score)
     .slice(0, safeLimit)
     .map((s, i) => ({
