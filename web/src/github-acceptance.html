@@ -13,6 +13,7 @@
       .muted{color:#9fb0df;font-size:12px}
       .summary{margin-top:6px;line-height:1.5;color:#d6e2ff}
       .grid{display:grid;grid-template-columns:1fr;gap:12px}
+      .status{margin-top:8px;color:#74c0fc;font-size:12px}
       @media (min-width: 980px){.grid{grid-template-columns:1fr 1fr}}
     </style>
   </head>
@@ -33,6 +34,7 @@
         <button id="loadSources" style="background:#2b8a3e">刷新已添加信息源</button>
       </div>
       <div id="discoverMeta" class="muted"></div>
+      <div id="sourceStatus" class="status"></div>
       <div class="grid">
         <div>
           <h3>候选信息源（确认后添加）</h3>
@@ -59,6 +61,7 @@ const langBtn=document.getElementById('langToggle');
 const sourceCandidatesEl=document.getElementById('sourceCandidates');
 const sourceListEl=document.getElementById('sourceList');
 const discoverMetaEl=document.getElementById('discoverMeta');
+const sourceStatusEl=document.getElementById('sourceStatus');
 let lang='zh';
 let lastMode='trending';
 let candidates=[];
@@ -91,12 +94,14 @@ async function loadFeed(mode='latest'){
 }
 
 function renderCandidates(){
-  sourceCandidatesEl.innerHTML = candidates.map((s, idx)=>`<div class='card'><div><strong>${s.name}</strong> <span class='muted'>(${s.type})</span></div><div class='summary'>${s.reason||''}</div><div class='muted'>${s.url}</div><button data-idx='${idx}' class='add-source-btn' style='background:#2b8a3e;margin-top:6px'>添加</button></div>`).join('') || `<div class='card'>暂无候选源</div>`;
+  sourceCandidatesEl.innerHTML = candidates.map((s, idx)=>`<div class='card'><div><strong>${s.name}</strong> <span class='muted'>(${s.type})</span></div><div class='summary'>${s.reason||''}</div><div class='muted'>${s.url}</div><div class='row' style='margin-top:6px'><button data-idx='${idx}' class='add-source-btn' style='background:#2b8a3e'>添加</button><a href='${s.url}' target='_blank'><button style='background:#15aabf'>查看内容</button></a></div></div>`).join('') || `<div class='card'>暂无候选源</div>`;
   document.querySelectorAll('.add-source-btn').forEach(btn=>{
     btn.onclick = async () => {
       const item = candidates[Number(btn.dataset.idx)];
       if (!item) return;
-      await fetch(`${API}/v1/sources`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(item) });
+      const resp = await fetch(`${API}/v1/sources`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(item) });
+      const d = await resp.json();
+      sourceStatusEl.textContent = d.duplicated ? '该信息源已存在，已为你刷新列表。' : '添加成功，已更新到前端列表。';
       await loadSources();
     };
   });
@@ -108,6 +113,7 @@ async function discoverSources(){
   const d = await r.json();
   candidates = d.items || [];
   discoverMetaEl.textContent = `discover_mode=${d.mode||'-'} query=${d.query||query} candidates=${candidates.length}`;
+  sourceStatusEl.textContent = '';
   renderCandidates();
 }
 
@@ -115,7 +121,7 @@ async function loadSources(){
   const r = await fetch(`${API}/v1/sources`);
   const d = await r.json();
   const items = d.items || [];
-  sourceListEl.innerHTML = items.map(s=>`<div class='card'><div><strong>${s.name}</strong> <span class='muted'>(${s.type})</span></div><div class='muted'>${s.url}</div><div class='summary'>${s.reason||''}</div></div>`).join('') || `<div class='card'>暂无已添加源</div>`;
+  sourceListEl.innerHTML = items.map(s=>`<div class='card'><div><strong>${s.name}</strong> <span class='muted'>(${s.type})</span></div><div class='muted'>${s.url}</div><div class='summary'>${s.reason||''}</div><div class='row'><a href='${s.url}' target='_blank'><button style='background:#15aabf'>查看信息源内容</button></a></div></div>`).join('') || `<div class='card'>暂无已添加源</div>`;
 }
 
 async function loadMsg(){
