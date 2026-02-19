@@ -29,19 +29,27 @@ class FeedViewModel(
     private val observeFeed: (String) -> Flow<List<FeedItem>>,
     private val refreshSourcesAndFeed: suspend () -> RefreshResult,
     private val refreshSource: suspend (String) -> RefreshResult,
+    private val getPersistedSelectedSourceId: suspend () -> String?,
+    private val persistSelectedSourceId: suspend (String) -> Unit,
     dispatcher: CoroutineDispatcher = Dispatchers.Main
 ) {
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val _uiState = MutableStateFlow(FeedUiState())
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
     private val selectedSourceIdFlow = MutableStateFlow<String?>(null)
+    private val persistedSelectedSourceIdFlow = MutableStateFlow<String?>(null)
 
     init {
+        scope.launch {
+            persistedSelectedSourceIdFlow.value = getPersistedSelectedSourceId()
+        }
+
         scope.launch {
             observeSources().collectLatest { allSources ->
                 val sources = allSources.filter { it.enabled }
                 val current = _uiState.value
                 val selectedId = current.selectedSourceId?.takeIf { id -> sources.any { it.id == id } }
+                    ?: persistedSelectedSourceIdFlow.value?.takeIf { id -> sources.any { it.id == id } }
                     ?: sources.firstOrNull()?.id
                 val selectedSource = sources.firstOrNull { it.id == selectedId }
 
@@ -53,6 +61,7 @@ class FeedViewModel(
                     items = if (selectedId == null) emptyList() else current.items
                 )
                 selectedSourceIdFlow.value = selectedId
+                selectedId?.let { persistSelection(it) }
             }
         }
 
@@ -74,6 +83,7 @@ class FeedViewModel(
         val source = _uiState.value.sources.firstOrNull { it.id == sourceId } ?: return
         _uiState.value = _uiState.value.copy(selectedSourceId = sourceId, sourceName = source.name, items = emptyList())
         selectedSourceIdFlow.value = sourceId
+        persistSelection(sourceId)
     }
 
     fun reload() {
@@ -103,6 +113,13 @@ class FeedViewModel(
                 is RefreshResult.Success -> _uiState.value = _uiState.value.copy(loading = false)
                 is RefreshResult.Error -> _uiState.value = _uiState.value.copy(loading = false, error = result.message)
             }
+        }
+    }
+
+    private fun persistSelection(sourceId: String) {
+        scope.launch {
+            persistSelectedSourceId(sourceId)
+            persistedSelectedSourceIdFlow.value = sourceId
         }
     }
 }

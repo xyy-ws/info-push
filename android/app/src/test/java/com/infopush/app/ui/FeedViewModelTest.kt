@@ -53,11 +53,14 @@ class FeedViewModelTest {
             )
         )
 
+        var persistedId: String? = null
         val viewModel = FeedViewModel(
             observeSources = { sourceFlow },
             observeFeed = { sourceId: String -> feedMap[sourceId] ?: flowOf(emptyList()) },
             refreshSourcesAndFeed = { RefreshResult.Success() },
             refreshSource = { RefreshResult.Success() },
+            getPersistedSelectedSourceId = { persistedId },
+            persistSelectedSourceId = { persistedId = it },
             dispatcher = dispatcher
         )
 
@@ -70,5 +73,30 @@ class FeedViewModelTest {
 
         assertEquals("source-b", viewModel.uiState.value.selectedSourceId)
         assertEquals(listOf("B-1"), viewModel.uiState.value.items.map { it.title })
+        assertEquals("source-b", persistedId)
+    }
+
+    @Test
+    fun `should use persisted selected source when available`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val sourceFlow = MutableStateFlow(
+            listOf(
+                SourceEntity(id = "source-a", name = "A", enabled = true),
+                SourceEntity(id = "source-b", name = "B", enabled = true)
+            )
+        )
+
+        val viewModel = FeedViewModel(
+            observeSources = { sourceFlow },
+            observeFeed = { sourceId: String -> flowOf(listOf(FeedItem("id-$sourceId", sourceId, "title-$sourceId", "", "", ""))) },
+            refreshSourcesAndFeed = { RefreshResult.Success() },
+            refreshSource = { RefreshResult.Success() },
+            getPersistedSelectedSourceId = { "source-b" },
+            persistSelectedSourceId = {},
+            dispatcher = dispatcher
+        )
+
+        advanceUntilIdle()
+        assertEquals("source-b", viewModel.uiState.value.selectedSourceId)
     }
 }

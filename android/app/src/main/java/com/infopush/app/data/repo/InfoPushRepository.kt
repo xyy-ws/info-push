@@ -3,6 +3,7 @@ package com.infopush.app.data.repo
 import com.infopush.app.data.local.InfoPushDatabase
 import com.infopush.app.data.local.entity.FavoriteEntity
 import com.infopush.app.data.local.entity.MessageEntity
+import com.infopush.app.data.local.entity.PreferenceEntity
 import com.infopush.app.data.local.entity.SourceEntity
 import com.infopush.app.data.local.entity.SourceItemEntity
 import com.infopush.app.data.remote.InfoPushApi
@@ -26,6 +27,9 @@ class InfoPushRepository(
     private val api: InfoPushApi,
     private val enableMockFallback: Boolean = false
 ) {
+    companion object {
+        private const val KEY_SELECTED_SOURCE_ID = "feed.selected_source_id"
+    }
     fun observeSources(): Flow<List<SourceEntity>> = database.sourceDao().observeSources()
 
     suspend fun addSource(name: String, url: String, type: String, tags: String) {
@@ -80,6 +84,19 @@ class InfoPushRepository(
     suspend fun setSourceEnabled(sourceId: String, enabled: Boolean) {
         val source = database.sourceDao().getSourceById(sourceId) ?: return
         database.sourceDao().upsertSource(source.copy(enabled = enabled))
+    }
+
+    suspend fun getSelectedSourceId(): String? {
+        return database.preferenceDao().getByKey(KEY_SELECTED_SOURCE_ID)?.value
+    }
+
+    suspend fun saveSelectedSourceId(sourceId: String) {
+        database.preferenceDao().upsert(
+            PreferenceEntity(
+                key = KEY_SELECTED_SOURCE_ID,
+                value = sourceId
+            )
+        )
     }
 
     suspend fun deleteSource(sourceId: String) {

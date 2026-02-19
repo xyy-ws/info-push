@@ -115,4 +115,34 @@ class SourcesViewModelTest {
         assertEquals("Tech Daily", viewModel.aiSearchState.value.results.first().name)
         assertFalse(viewModel.aiSearchState.value.loading)
     }
+
+    @Test
+    fun `existing source url should be marked as added in ai state`() = runTest {
+        val sourceFlow = MutableStateFlow(listOf(SourceEntity(id = "1", name = "A", url = "https://x.com/rss")))
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        var addTriggered = false
+
+        val viewModel = SourcesViewModel(
+            observeSources = { sourceFlow },
+            refreshSources = { RefreshResult.Success(fromMock = false) },
+            addSource = {},
+            setSourceEnabled = { _, _ -> },
+            deleteSource = {},
+            discoverSources = { emptyList() },
+            addAiSourceToLocal = {
+                addTriggered = true
+                AddSourceResult.Success
+            },
+            dispatcher = dispatcher
+        )
+
+        advanceUntilIdle()
+        val candidate = AiDiscoveredSource(name = "Tech Daily", url = "https://x.com/rss", type = "rss", reason = "")
+        viewModel.addDiscoveredSource(candidate)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.aiSearchState.value.addedUrls.contains("https://x.com/rss"))
+        assertEquals("该 URL 已存在于本地信息源", viewModel.aiSearchState.value.error)
+        assertFalse(addTriggered)
+    }
 }

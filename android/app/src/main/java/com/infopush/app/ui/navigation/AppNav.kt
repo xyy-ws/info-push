@@ -49,7 +49,9 @@ fun AppNav() {
             observeSources = { repository.observeSources() },
             observeFeed = { sourceId -> repository.observeFeed(sourceId) },
             refreshSourcesAndFeed = { repository.refreshSourcesAndFeed() },
-            refreshSource = { sourceId -> repository.refreshSource(sourceId) }
+            refreshSource = { sourceId -> repository.refreshSource(sourceId) },
+            getPersistedSelectedSourceId = { repository.getSelectedSourceId() },
+            persistSelectedSourceId = { sourceId -> repository.saveSelectedSourceId(sourceId) }
         )
     }
     val sourcesViewModel = remember {

@@ -28,7 +28,8 @@ data class AiSearchUiState(
     val loading: Boolean = false,
     val results: List<AiDiscoveredSource> = emptyList(),
     val error: String? = null,
-    val empty: Boolean = false
+    val empty: Boolean = false,
+    val addedUrls: Set<String> = emptySet()
 )
 
 class SourcesViewModel(
@@ -48,11 +49,30 @@ class SourcesViewModel(
     private val _aiSearchState = MutableStateFlow(AiSearchUiState())
     val aiSearchState: StateFlow<AiSearchUiState> = _aiSearchState.asStateFlow()
 
+    private val _sourceFilter = MutableStateFlow("")
+    val sourceFilter: StateFlow<String> = _sourceFilter.asStateFlow()
+
     init {
         scope.launch {
             observeSources().collectLatest { sources ->
+                val sourceUrls = sources.map { it.url.trim() }.filter { it.isNotBlank() }.toSet()
                 _uiState.value = _uiState.value.copy(loading = false, items = sources)
+                _aiSearchState.value = _aiSearchState.value.copy(addedUrls = sourceUrls)
             }
+        }
+    }
+
+    fun updateSourceFilter(filter: String) {
+        _sourceFilter.value = filter
+    }
+
+    fun filteredSources(): List<SourceEntity> {
+        val keyword = _sourceFilter.value.trim().lowercase()
+        if (keyword.isBlank()) return _uiState.value.items
+        return _uiState.value.items.filter { source ->
+            source.name.lowercase().contains(keyword) ||
+                source.url.lowercase().contains(keyword) ||
+                source.tags.lowercase().contains(keyword)
         }
     }
 
@@ -86,6 +106,11 @@ class SourcesViewModel(
     }
 
     fun addDiscoveredSource(candidate: AiDiscoveredSource) {
+        val normalizedUrl = candidate.url.trim()
+        if (_aiSearchState.value.addedUrls.contains(normalizedUrl)) {
+            _aiSearchState.value = _aiSearchState.value.copy(error = "该 URL 已存在于本地信息源")
+            return
+        }
         scope.launch {
             when (val result = addAiSourceToLocal(candidate)) {
                 AddSourceResult.Success -> {
