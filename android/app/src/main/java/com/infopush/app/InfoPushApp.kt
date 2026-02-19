@@ -8,7 +8,7 @@ import com.infopush.app.ui.navigation.AppNav
 @Composable
 fun InfoPushApp() {
     MaterialTheme {
-        Surface {
+        Surface(color = MaterialTheme.colorScheme.background) {
             AppNav()
         }
     }

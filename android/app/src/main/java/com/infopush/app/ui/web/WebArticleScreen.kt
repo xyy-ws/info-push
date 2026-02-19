@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.ArrowBack
@@ -76,6 +78,8 @@ fun WebArticleScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(text = title, maxLines = 1) },
+            modifier = Modifier.statusBarsPadding(),
+            windowInsets = WindowInsets(0, 0, 0, 0),
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(Icons.Outlined.ArrowBack, contentDescription = "返回")
