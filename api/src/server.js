@@ -37,6 +37,7 @@ let sources = Array.isArray(restored.sources)
   ? restored.sources.map((s) => ({ enabled: true, fetchMode: 'hybrid', ...s }))
   : [];
 let sourceItems = Array.isArray(restored.sourceItems) ? restored.sourceItems : [];
+let favorites = Array.isArray(restored.favorites) ? restored.favorites : [];
 
 let messages = [];
 let preferences = restored.preferences || {
@@ -47,7 +48,7 @@ let preferences = restored.preferences || {
 };
 
 function persist() {
-  saveState({ sources, sourceItems, preferences });
+  saveState({ sources, sourceItems, favorites, preferences });
 }
 
 function json(res, status, data) {
@@ -342,6 +343,41 @@ const server = http.createServer(async (req, res) => {
     const limit = Number(url.searchParams.get('limit') || '20');
     const result = await collectSource(source, limit);
     return json(res, 200, result);
+  }
+
+  if (req.method === 'GET' && url.pathname === '/v1/favorites') {
+    const items = [...favorites].sort((a, b) => new Date(b.favoritedAt).getTime() - new Date(a.favoritedAt).getTime());
+    return json(res, 200, { items });
+  }
+
+  if (req.method === 'POST' && url.pathname === '/v1/favorites') {
+    try {
+      const payload = await readJsonBody(req);
+      const fav = {
+        id: payload.id || `fav-${Date.now()}`,
+        sourceId: payload.sourceId || null,
+        title: payload.title || 'Untitled',
+        summary: payload.summary || '',
+        url: payload.url || '',
+        publishedAt: payload.publishedAt || null,
+        favoritedAt: nowIso()
+      };
+      if (!fav.url) return json(res, 400, { ok: false, error: 'url_required' });
+      const exists = favorites.some((x) => x.url === fav.url);
+      if (!exists) favorites = [fav, ...favorites].slice(0, 2000);
+      persist();
+      return json(res, 200, { ok: true, item: fav, duplicated: exists });
+    } catch {
+      return json(res, 400, { ok: false, error: 'invalid_json' });
+    }
+  }
+
+  const favMatch = url.pathname.match(/^\/v1\/favorites\/([^/]+)$/);
+  if (favMatch && req.method === 'DELETE') {
+    const id = decodeURIComponent(favMatch[1]);
+    favorites = favorites.filter((x) => x.id !== id);
+    persist();
+    return json(res, 200, { ok: true });
   }
 
   if (req.method === 'GET' && url.pathname === '/v1/messages') {
