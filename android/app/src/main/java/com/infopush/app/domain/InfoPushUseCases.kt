@@ -22,7 +22,7 @@ class RefreshSourcesAndFeedUseCase(private val repository: InfoPushRepository) {
 }
 
 class RefreshSourceUseCase(private val repository: InfoPushRepository) {
-    suspend operator fun invoke(sourceId: String) = repository.refreshSource(sourceId)
+    suspend operator fun invoke(sourceId: String): RefreshResult = repository.refreshSource(sourceId)
 }
 
 class ObserveFavoritesUseCase(private val repository: InfoPushRepository) {

@@ -7,6 +7,7 @@ import com.infopush.app.data.local.entity.SourceEntity
 import com.infopush.app.data.local.entity.SourceItemEntity
 import com.infopush.app.data.remote.InfoPushApi
 import com.infopush.app.data.remote.model.AiDiscoverSourcesRequest
+import com.infopush.app.data.remote.model.CreateSourceRequest
 import com.infopush.app.data.remote.model.DataExportResponse
 import com.infopush.app.data.remote.model.DataImportRequest
 import com.infopush.app.data.remote.model.DataImportResponse
@@ -101,10 +102,34 @@ class InfoPushRepository(
         }
     }
 
-    suspend fun refreshSource(sourceId: String) {
-        val result = refreshSourcesAndFeed()
-        if (result is RefreshResult.Error) throw IllegalStateException(result.message)
-        if (sourceId.isBlank()) return
+    suspend fun refreshSource(sourceId: String): RefreshResult {
+        if (sourceId.isBlank()) return RefreshResult.Error("sourceId 不能为空")
+        val localSource = database.sourceDao().getSourceById(sourceId)
+            ?: return RefreshResult.Error("信息源不存在")
+
+        return try {
+            val backendSourceId = resolveBackendSourceId(localSource)
+            val collect = api.collectSource(backendSourceId, limit = 20)
+            if (!collect.ok) {
+                return RefreshResult.Error(collect.message ?: collect.error ?: "远端拉取失败")
+            }
+            val itemsResponse = api.getSourceItems(backendSourceId, limit = 50)
+            database.sourceDao().upsertSourceItems(
+                itemsResponse.items.map { item ->
+                    SourceItemEntity(
+                        id = item.id,
+                        sourceId = localSource.id,
+                        title = item.title,
+                        summary = item.summary.orEmpty(),
+                        url = item.url.orEmpty(),
+                        publishedAt = item.publishedAt.orEmpty()
+                    )
+                }
+            )
+            RefreshResult.Success()
+        } catch (t: Throwable) {
+            RefreshResult.Error("信息源刷新失败: ${t.message.orEmpty()}")
+        }
     }
 
     suspend fun refreshSourcesAndFeed(): RefreshResult {
@@ -118,7 +143,8 @@ class InfoPushRepository(
                         url = source.url.orEmpty(),
                         type = "rss",
                         tags = source.description.orEmpty(),
-                        enabled = true
+                        enabled = true,
+                        backendSourceId = source.id
                     )
                 }
             )
@@ -138,6 +164,35 @@ class InfoPushRepository(
         } catch (t: Throwable) {
             applySourcesMockFallback(t)
         }
+    }
+
+    private suspend fun resolveBackendSourceId(localSource: SourceEntity): String {
+        localSource.backendSourceId?.takeIf { it.isNotBlank() }?.let { return it }
+
+        val existingRemote = api.getSources().items.firstOrNull { it.url == localSource.url }
+        if (existingRemote != null) {
+            cacheBackendSourceId(localSource.id, existingRemote.id)
+            return existingRemote.id
+        }
+
+        val createResp = api.createSource(
+            CreateSourceRequest(
+                name = localSource.name,
+                url = localSource.url,
+                type = localSource.type,
+                reason = localSource.tags.ifBlank { null },
+                enabled = localSource.enabled
+            )
+        )
+        val backendId = createResp.item?.id
+            ?: throw IllegalStateException(createResp.message ?: createResp.error ?: "远端注册信息源失败")
+        cacheBackendSourceId(localSource.id, backendId)
+        return backendId
+    }
+
+    private suspend fun cacheBackendSourceId(localSourceId: String, backendSourceId: String) {
+        val latest = database.sourceDao().getSourceById(localSourceId) ?: return
+        database.sourceDao().upsertSource(latest.copy(backendSourceId = backendSourceId))
     }
 
     fun observeFavorites(): Flow<List<FeedItem>> {

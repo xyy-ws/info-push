@@ -7,6 +7,9 @@ import com.infopush.app.data.local.entity.SourceEntity
 import com.infopush.app.data.local.entity.SourceItemEntity
 import com.infopush.app.data.remote.InfoPushApi
 import com.infopush.app.data.remote.model.AiDiscoverSourcesResponse
+import com.infopush.app.data.remote.model.CollectSourceResponse
+import com.infopush.app.data.remote.model.CreateSourceRequest
+import com.infopush.app.data.remote.model.CreateSourceResponse
 import com.infopush.app.data.remote.model.DataExportResponse
 import com.infopush.app.data.remote.model.DataImportRequest
 import com.infopush.app.data.remote.model.DataImportResponse
@@ -16,6 +19,8 @@ import com.infopush.app.data.remote.model.FavoritesResponse
 import com.infopush.app.data.remote.model.HomeSourcesResponse
 import com.infopush.app.data.remote.model.SourceDto
 import com.infopush.app.data.remote.model.SourceItemDto
+import com.infopush.app.data.remote.model.SourceItemsResponse
+import com.infopush.app.data.remote.model.SourceListResponse
 import com.infopush.app.domain.FeedItem
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -144,11 +149,65 @@ class InfoPushRepositoryTest {
         assertEquals(1, db.sourceDao().listSources().count { it.url == "https://example.com/rss" })
     }
 
+    @Test
+    fun refreshSource_shouldRegisterCollectAndWriteBackItems() = runTest {
+        val fakeApi = FakeInfoPushApi(
+            sourceListResponse = SourceListResponse(items = emptyList()),
+            createSourceResponse = CreateSourceResponse(
+                ok = true,
+                duplicated = false,
+                item = SourceDto(id = "remote-tech", name = "Tech", url = "https://example.com/rss")
+            ),
+            collectSourceResponse = CollectSourceResponse(ok = true, sourceId = "remote-tech", inserted = 1),
+            sourceItemsResponse = SourceItemsResponse(
+                sourceId = "remote-tech",
+                items = listOf(
+                    SourceItemDto(
+                        id = "remote-item-1",
+                        sourceId = "remote-tech",
+                        title = "Remote newest",
+                        summary = "from collect",
+                        url = "https://example.com/remote-1",
+                        publishedAt = "2026-02-19T02:00:00Z"
+                    )
+                )
+            )
+        )
+        val repository = InfoPushRepository(db, fakeApi)
+        db.sourceDao().upsertSource(
+            SourceEntity(
+                id = "local-tech",
+                name = "Tech",
+                url = "https://example.com/rss",
+                type = "rss",
+                enabled = true
+            )
+        )
+
+        val result = repository.refreshSource("local-tech")
+
+        assertTrue(result is RefreshResult.Success)
+        val savedItems = db.sourceDao().observeSourceItems("local-tech").first()
+        assertEquals(1, savedItems.size)
+        assertEquals("remote-item-1", savedItems.first().id)
+        assertEquals("local-tech", savedItems.first().sourceId)
+
+        val updatedSource = db.sourceDao().getSourceById("local-tech")
+        assertEquals("remote-tech", updatedSource?.backendSourceId)
+        assertEquals(1, fakeApi.collectSourceCalls.size)
+        assertEquals("remote-tech", fakeApi.collectSourceCalls.first())
+    }
+
     private class FakeInfoPushApi(
         private val homeSourcesResponse: HomeSourcesResponse = HomeSourcesResponse(),
-        private val favoriteResponses: MutableList<FavoriteResponse> = mutableListOf(FavoriteResponse(ok = true))
+        private val favoriteResponses: MutableList<FavoriteResponse> = mutableListOf(FavoriteResponse(ok = true)),
+        private val sourceListResponse: SourceListResponse = SourceListResponse(),
+        private val createSourceResponse: CreateSourceResponse = CreateSourceResponse(),
+        private val collectSourceResponse: CollectSourceResponse = CollectSourceResponse(ok = true),
+        private val sourceItemsResponse: SourceItemsResponse = SourceItemsResponse()
     ) : InfoPushApi {
         val addFavoriteRequests: MutableList<FavoriteRequest> = mutableListOf()
+        val collectSourceCalls: MutableList<String> = mutableListOf()
 
         override suspend fun getHomeSources(): HomeSourcesResponse = homeSourcesResponse
 
@@ -170,5 +229,16 @@ class InfoPushRepositoryTest {
         override suspend fun discoverSources(request: com.infopush.app.data.remote.model.AiDiscoverSourcesRequest): AiDiscoverSourcesResponse {
             return AiDiscoverSourcesResponse()
         }
+
+        override suspend fun getSources(): SourceListResponse = sourceListResponse
+
+        override suspend fun createSource(request: CreateSourceRequest): CreateSourceResponse = createSourceResponse
+
+        override suspend fun collectSource(sourceId: String, limit: Int): CollectSourceResponse {
+            collectSourceCalls += sourceId
+            return collectSourceResponse
+        }
+
+        override suspend fun getSourceItems(sourceId: String, limit: Int): SourceItemsResponse = sourceItemsResponse
     }
 }

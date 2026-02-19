@@ -103,3 +103,40 @@ data class AiDiscoverSourcesResponse(
     val items: List<AiDiscoveredSourceDto> = emptyList(),
     val sources: List<AiDiscoveredSourceDto> = emptyList()
 )
+
+data class SourceListResponse(
+    val items: List<SourceDto> = emptyList()
+)
+
+data class CreateSourceRequest(
+    val id: String? = null,
+    val name: String = "",
+    val url: String = "",
+    val type: String = "rss",
+    val reason: String? = null,
+    val fetchMode: String = "hybrid",
+    val enabled: Boolean = true
+)
+
+data class CreateSourceResponse(
+    val ok: Boolean = false,
+    val duplicated: Boolean = false,
+    val item: SourceDto? = null,
+    val error: String? = null,
+    val message: String? = null
+)
+
+data class CollectSourceResponse(
+    val ok: Boolean = false,
+    val sourceId: String = "",
+    val fetched: Int = 0,
+    val inserted: Int = 0,
+    val error: String? = null,
+    val message: String? = null
+)
+
+data class SourceItemsResponse(
+    val sourceId: String = "",
+    val limit: Int = 20,
+    val items: List<SourceItemDto> = emptyList()
+)

@@ -10,5 +10,6 @@ data class SourceEntity(
     val url: String = "",
     val type: String = "rss",
     val tags: String = "",
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val backendSourceId: String? = null
 )

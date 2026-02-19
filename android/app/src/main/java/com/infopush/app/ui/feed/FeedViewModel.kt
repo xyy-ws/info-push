@@ -28,6 +28,7 @@ class FeedViewModel(
     private val observeSources: () -> Flow<List<SourceEntity>>,
     private val observeFeed: (String) -> Flow<List<FeedItem>>,
     private val refreshSourcesAndFeed: suspend () -> RefreshResult,
+    private val refreshSource: suspend (String) -> RefreshResult,
     dispatcher: CoroutineDispatcher = Dispatchers.Main
 ) {
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -86,6 +87,21 @@ class FeedViewModel(
                 is RefreshResult.Error -> {
                     _uiState.value = _uiState.value.copy(loading = false, error = result.message)
                 }
+            }
+        }
+    }
+
+    fun refreshCurrentSource() {
+        val sourceId = _uiState.value.selectedSourceId
+        if (sourceId == null) {
+            _uiState.value = _uiState.value.copy(error = "请先选择信息源")
+            return
+        }
+        scope.launch {
+            _uiState.value = _uiState.value.copy(loading = true, error = null)
+            when (val result = refreshSource(sourceId)) {
+                is RefreshResult.Success -> _uiState.value = _uiState.value.copy(loading = false)
+                is RefreshResult.Error -> _uiState.value = _uiState.value.copy(loading = false, error = result.message)
             }
         }
     }

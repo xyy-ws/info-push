@@ -57,6 +57,7 @@ class FeedViewModelTest {
             observeSources = { sourceFlow },
             observeFeed = { sourceId: String -> feedMap[sourceId] ?: flowOf(emptyList()) },
             refreshSourcesAndFeed = { RefreshResult.Success() },
+            refreshSource = { RefreshResult.Success() },
             dispatcher = dispatcher
         )
 

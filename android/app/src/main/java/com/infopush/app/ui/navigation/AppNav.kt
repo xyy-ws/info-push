@@ -48,7 +48,8 @@ fun AppNav() {
         FeedViewModel(
             observeSources = { repository.observeSources() },
             observeFeed = { sourceId -> repository.observeFeed(sourceId) },
-            refreshSourcesAndFeed = { repository.refreshSourcesAndFeed() }
+            refreshSourcesAndFeed = { repository.refreshSourcesAndFeed() },
+            refreshSource = { sourceId -> repository.refreshSource(sourceId) }
         )
     }
     val sourcesViewModel = remember {
