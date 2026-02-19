@@ -35,7 +35,14 @@ async function loadFeed(mode='latest'){
   const path = mode==='trending' ? '/v1/sources/github/trending?limit=10' : '/v1/sources/github/latest?limit=10';
   const r=await fetch(`${API}${path}`); const d=await r.json();
   meta.textContent=`mode=${d.mode||mode} provider=${d.provider||'-'} live=${String(d.live)} items=${(d.items||[]).length}`;
-  feedEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div><strong>${i.title}</strong></div><div class='summary'>简介：${i.summary||'暂无简介'}</div><div class='muted'>⭐${i.stars??0} · ${i.language||'-'} · ${i.updatedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a></div>`).join('')||'<div class="card">暂无数据</div>';
+  const toChineseSummary = (text='') => {
+    const s = String(text || '').trim();
+    if (!s) return '暂无简介';
+    const hasChinese = /[\u4e00-\u9fa5]/.test(s);
+    if (hasChinese) return s;
+    return `这是一个 GitHub 项目：${s}`;
+  };
+  feedEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div><strong>${i.title}</strong></div><div class='summary'>简介（中文）：${toChineseSummary(i.summary)}</div><div class='muted'>⭐${i.stars??0} · ${i.language||'-'} · ${i.updatedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a></div>`).join('')||'<div class="card">暂无数据</div>';
 }
 async function loadMsg(){
   const r=await fetch(`${API}/v1/messages?limit=20`); const d=await r.json();
