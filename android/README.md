@@ -1,27 +1,54 @@
 # Info Push Android
 
-## 当前状态（Task 1）
+Info Push Android 客户端（Jetpack Compose + Room + Retrofit）。
 
-已初始化 Android 项目骨架（Gradle + app 模块）并补齐以下依赖占位：
-- Compose
-- Room
-- Retrofit
-- Navigation Compose
+## 运行方式
 
-> 本阶段只完成“可测试的最小骨架”，业务功能与页面细节在后续 Task 继续实现。
+工作目录：`apps/info-push/android`
 
-## 最小运行说明
-
-在目录 `apps/info-push/android` 执行：
+### 1) 执行全量单测（Task 7 验证命令）
 
 ```bash
 ./gradlew :app:testDebugUnitTest
 ```
 
-预期输出：`BUILD SUCCESSFUL`
+### 2) 本地构建 Debug 包
 
-## 目录说明
+```bash
+./gradlew :app:assembleDebug
+```
 
-- `app/src/main/java/com/infopush/app/MainActivity.kt`：应用入口骨架
-- `app/src/main/java/com/infopush/app/InfoPushApp.kt`：应用根组件骨架
-- `app/src/test/java/com/infopush/app/ProjectSanityTest.kt`：项目健康检查测试
+## API baseUrl 说明
+
+当前网络层通过 `NetworkModule.createApi(baseUrl: String)` 注入 API 地址，接口路径为 `/v1/*`（例如 `/v1/sources/home`、`/v1/favorites`、`/v1/data/export`）。
+
+推荐约定：
+
+- 本地开发（Android Emulator 访问宿主机）：`http://10.0.2.2:3000/`
+- 真机调试（同局域网）：`http://<你的宿主机IP>:3000/`
+- 生产环境：使用正式 HTTPS 域名（必须以 `/` 结尾）
+
+注意：`baseUrl` 需满足 Retrofit 要求（包含协议、主机，且以 `/` 结尾）。
+
+## 导入 / 导出说明
+
+导入导出能力由 `ImportExportUseCase` 提供，数据结构：
+
+- `version`
+- `exportedAt`
+- `data`（sources / sourceItems / favorites / messages / preferences）
+
+导入模式：
+
+- `REPLACE`：全量替换本地数据
+- `MERGE`：按合并策略写入本地数据
+
+UI 入口位于设置页（`SettingsScreen`）：
+
+- 导出数据
+- 导入数据（replace）
+- 导入数据（merge）
+
+## 验收步骤
+
+四个页面的验收步骤见：`docs/acceptance.md`
