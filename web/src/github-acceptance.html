@@ -8,13 +8,10 @@
       body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:20px;background:#0b1020;color:#eaf0ff}
       .row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
       button{padding:8px 12px;border:0;border-radius:8px;background:#4f7cff;color:#fff;cursor:pointer}
-      input{padding:8px 12px;border:1px solid #24345f;border-radius:8px;background:#0f1530;color:#fff;min-width:260px}
       .card{background:#111936;border:1px solid #24345f;border-radius:10px;padding:10px;margin:8px 0}
       .muted{color:#9fb0df;font-size:12px}
       .summary{margin-top:6px;line-height:1.5;color:#d6e2ff}
-      .grid{display:grid;grid-template-columns:1fr;gap:12px}
       .status{margin-top:8px;color:#74c0fc;font-size:12px}
-      @media (min-width: 980px){.grid{grid-template-columns:1fr 1fr}}
     </style>
   </head>
   <body>
@@ -24,7 +21,8 @@
         <a href="/info-push/sources.html"><button style="background:#2b8a3e">信息源管理</button></a>
       </div>
     </div>
-    <h2 id="title">Info Push 验收页（GitHub AI 热门项目）</h2>
+
+    <h2 id="title">Info Push 首页（信息源按钮）</h2>
     <div class="row">
       <button id="loadLatest">查看最新项目</button>
       <button id="loadTrending" style="background:#f59f00">刷新热门项目</button>
@@ -34,28 +32,15 @@
     </div>
 
     <div class="card">
-      <div class="row">
-        <input id="sourceQuery" placeholder="输入需求，例如：AI coding、LLM、agent、AIGC" value="AI 热门技术资讯" />
-        <button id="discoverSources" style="background:#7048e8">AI 搜索信息源</button>
-        <button id="loadSources" style="background:#2b8a3e">刷新已添加信息源</button>
-      </div>
-      <div id="discoverMeta" class="muted"></div>
+      <h3 style="margin-top:0">已添加信息源（点击按钮自动刷新并显示对应内容）</h3>
+      <div id="sourceButtons" class="row"></div>
       <div id="sourceStatus" class="status"></div>
-      <div class="grid">
-        <div>
-          <h3>候选信息源（确认后添加）</h3>
-          <div id="sourceCandidates"></div>
-        </div>
-        <div>
-          <h3>已添加信息源</h3>
-          <div id="sourceList"></div>
-        </div>
-      </div>
     </div>
 
     <div id="meta" class="muted"></div>
-    <h3 id="feedTitle">GitHub Feed</h3>
+    <h3 id="feedTitle">推送内容</h3>
     <div id="feed"></div>
+
     <h3 id="msgTitle">消息中心</h3>
     <div id="msg"></div>
 <script>
@@ -64,18 +49,16 @@ const feedEl=document.getElementById('feed');
 const msgEl=document.getElementById('msg');
 const meta=document.getElementById('meta');
 const langBtn=document.getElementById('langToggle');
-const sourceCandidatesEl=document.getElementById('sourceCandidates');
-const sourceListEl=document.getElementById('sourceList');
-const discoverMetaEl=document.getElementById('discoverMeta');
+const sourceButtonsEl=document.getElementById('sourceButtons');
 const sourceStatusEl=document.getElementById('sourceStatus');
 let lang='zh';
 let lastMode='trending';
-let candidates=[];
+let currentSourceId='';
 
 function t(k){
   const dict={
-    zh:{title:'Info Push 验收页（GitHub AI 热门项目）',latest:'查看最新项目',trending:'刷新热门项目',trigger:'触发一条消息',refreshMsg:'刷新消息中心',feed:'GitHub Feed',msg:'消息中心',summary:'简介（中文）',empty:'暂无数据',noMsg:'暂无消息'},
-    en:{title:'Info Push Acceptance (GitHub AI Trending)',latest:'Load Latest',trending:'Load Trending',trigger:'Trigger Message',refreshMsg:'Refresh Messages',feed:'GitHub Feed',msg:'Message Center',summary:'Summary (EN)',empty:'No data',noMsg:'No messages'}
+    zh:{title:'Info Push 首页（信息源按钮）',latest:'查看最新项目',trending:'刷新热门项目',trigger:'触发一条消息',refreshMsg:'刷新消息中心',feed:'推送内容',msg:'消息中心',summary:'简介（中文）',empty:'暂无数据',noMsg:'暂无消息'},
+    en:{title:'Info Push Home (Source Buttons)',latest:'Load Latest',trending:'Load Trending',trigger:'Trigger Message',refreshMsg:'Refresh Messages',feed:'Feed Content',msg:'Message Center',summary:'Summary (EN)',empty:'No data',noMsg:'No messages'}
   };
   return dict[lang][k] || k;
 }
@@ -91,63 +74,57 @@ function applyLang(){
   langBtn.textContent=lang==='zh'?'EN':'中';
 }
 
-async function loadFeed(mode='latest'){
+async function loadGithubFeed(mode='latest'){
   lastMode=mode;
-  const path = mode==='trending' ? '/v1/sources/github/trending?limit=10' : '/v1/sources/github/latest?limit=10';
+  const path = mode==='trending' ? '/v1/sources/github/trending?limit=20' : '/v1/sources/github/latest?limit=20';
   const r=await fetch(`${API}${path}`); const d=await r.json();
   meta.textContent=`mode=${d.mode||mode} provider=${d.provider||'-'} live=${String(d.live)} items=${(d.items||[]).length}`;
   feedEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div><strong>${i.title}</strong></div><div class='summary'>${t('summary')}：${lang==='zh' ? (i.summaryZh||i.summary||'暂无简介') : (i.summary||'No summary')}</div><div class='muted'>⭐${i.stars??0} · ${i.language||'-'} · ${i.updatedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a></div>`).join('')||`<div class="card">${t('empty')}</div>`;
 }
 
-function renderCandidates(){
-  sourceCandidatesEl.innerHTML = candidates.map((s, idx)=>`<div class='card'><div><strong>${s.name}</strong> <span class='muted'>(${s.type})</span></div><div class='summary'>${s.reason||''}</div><div class='muted'>${s.url}</div><div class='row' style='margin-top:6px'><button data-idx='${idx}' class='add-source-btn' style='background:#2b8a3e'>添加</button><a href='${s.url}' target='_blank'><button style='background:#15aabf'>查看内容</button></a></div></div>`).join('') || `<div class='card'>暂无候选源</div>`;
-  document.querySelectorAll('.add-source-btn').forEach(btn=>{
-    btn.onclick = async () => {
-      const item = candidates[Number(btn.dataset.idx)];
-      if (!item) return;
-      const resp = await fetch(`${API}/v1/sources`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(item) });
-      const d = await resp.json();
-      sourceStatusEl.textContent = d.duplicated ? '该信息源已存在，已为你刷新列表。' : '添加成功，已更新到前端列表。';
-      await loadSources();
-    };
-  });
-}
-
-async function discoverSources(){
-  const query = document.getElementById('sourceQuery').value.trim() || 'AI';
-  const r = await fetch(`${API}/v1/ai/discover-sources`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ query, limit: 8 }) });
+async function loadHomeSources(){
+  const r = await fetch(`${API}/v1/sources/home`);
   const d = await r.json();
-  candidates = d.items || [];
-  discoverMetaEl.textContent = `discover_mode=${d.mode||'-'} query=${d.query||query} candidates=${candidates.length}`;
-  sourceStatusEl.textContent = '';
-  renderCandidates();
+  const list = d.items || [];
+  sourceButtonsEl.innerHTML = list.map(s=>`<button data-id='${s.id}' style='background:${s.enabled===false?'#495057':'#364fc7'}'>${s.name}</button>`).join('') || '<span class="muted">暂无信息源，去“信息源管理”页添加</span>';
+  sourceButtonsEl.querySelectorAll('button[data-id]').forEach(btn=>btn.onclick=()=>viewSource(btn.dataset.id));
 }
 
-async function loadSources(){
-  const r = await fetch(`${API}/v1/sources`);
+async function viewSource(sourceId){
+  currentSourceId = sourceId;
+  sourceStatusEl.textContent = '正在抓取该信息源...';
+  const c = await fetch(`${API}/v1/sources/${encodeURIComponent(sourceId)}/collect?limit=20`, { method:'POST' });
+  const cd = await c.json();
+  if (!c.ok || cd.ok === false) {
+    sourceStatusEl.textContent = `抓取失败：${cd.error || cd.message || '未知错误'}`;
+    return;
+  }
+  const r = await fetch(`${API}/v1/sources/${encodeURIComponent(sourceId)}/items?limit=20`);
   const d = await r.json();
   const items = d.items || [];
-  sourceListEl.innerHTML = items.map(s=>`<div class='card'><div><strong>${s.name}</strong> <span class='muted'>(${s.type})</span></div><div class='muted'>${s.url}</div><div class='summary'>${s.reason||''}</div><div class='row'><a href='${s.url}' target='_blank'><button style='background:#15aabf'>查看信息源内容</button></a></div></div>`).join('') || `<div class='card'>暂无已添加源</div>`;
+  sourceStatusEl.textContent = `抓取完成：新增 ${cd.added ?? 0} 条，当前展示 ${items.length} 条`;
+  meta.textContent = `mode=source sourceId=${sourceId} items=${items.length}`;
+  feedEl.innerHTML = items.map(i=>`<div class='card'><div><strong>${i.title}</strong></div><div class='summary'>${i.summary||''}</div><div class='muted'>${i.publishedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a></div>`).join('') || `<div class='card'>${t('empty')}</div>`;
+  await loadHomeSources();
 }
 
 async function loadMsg(){
   const r=await fetch(`${API}/v1/messages?limit=20`); const d=await r.json();
   msgEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div>${i.title}</div><div class='summary'>${i.body||''}</div><div class='muted'>${i.createdAt}</div></div>`).join('')||`<div class="card">${t('noMsg')}</div>`;
 }
+
 async function trigger(){await fetch(`${API}/v1/push/trigger`,{method:'POST'}); await loadMsg();}
 
-document.getElementById('loadLatest').onclick=()=>loadFeed('latest');
-document.getElementById('loadTrending').onclick=()=>loadFeed('trending');
+document.getElementById('loadLatest').onclick=()=>loadGithubFeed('latest');
+document.getElementById('loadTrending').onclick=()=>loadGithubFeed('trending');
 document.getElementById('loadMsg').onclick=loadMsg;
 document.getElementById('triggerMsg').onclick=trigger;
-document.getElementById('discoverSources').onclick=discoverSources;
-document.getElementById('loadSources').onclick=loadSources;
-langBtn.onclick=async ()=>{lang = lang==='zh'?'en':'zh'; applyLang(); await loadFeed(lastMode); await loadMsg();};
+langBtn.onclick=async ()=>{lang = lang==='zh'?'en':'zh'; applyLang(); if (currentSourceId) await viewSource(currentSourceId); else await loadGithubFeed(lastMode); await loadMsg();};
 
 applyLang();
-loadFeed('trending');
+loadHomeSources();
+loadGithubFeed('trending');
 loadMsg();
-loadSources();
 </script>
   </body>
 </html>
