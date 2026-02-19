@@ -99,4 +99,53 @@ class FeedViewModelTest {
         advanceUntilIdle()
         assertEquals("source-b", viewModel.uiState.value.selectedSourceId)
     }
+
+    @Test
+    fun `refresh current source without selection should show guidance error`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val sourceFlow = MutableStateFlow(emptyList<SourceEntity>())
+
+        val viewModel = FeedViewModel(
+            observeSources = { sourceFlow },
+            observeFeed = { flowOf(emptyList()) },
+            refreshSourcesAndFeed = { RefreshResult.Success() },
+            refreshSource = { RefreshResult.Success() },
+            getPersistedSelectedSourceId = { null },
+            persistSelectedSourceId = {},
+            dispatcher = dispatcher
+        )
+
+        advanceUntilIdle()
+        viewModel.refreshCurrentSource()
+
+        assertEquals("请先选择信息源", viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun `refresh current source should call refresh by selected source`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val sourceFlow = MutableStateFlow(
+            listOf(SourceEntity(id = "source-a", name = "A", enabled = true))
+        )
+
+        var refreshedSourceId: String? = null
+        val viewModel = FeedViewModel(
+            observeSources = { sourceFlow },
+            observeFeed = { flowOf(emptyList()) },
+            refreshSourcesAndFeed = { RefreshResult.Success() },
+            refreshSource = { sourceId ->
+                refreshedSourceId = sourceId
+                RefreshResult.Success()
+            },
+            getPersistedSelectedSourceId = { null },
+            persistSelectedSourceId = {},
+            dispatcher = dispatcher
+        )
+
+        advanceUntilIdle()
+        viewModel.refreshCurrentSource()
+        advanceUntilIdle()
+
+        assertEquals("source-a", refreshedSourceId)
+    }
 }
