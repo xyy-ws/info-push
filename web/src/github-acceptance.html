@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Info Push 验收页</title>
+    <style>
+      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:20px;background:#0b1020;color:#eaf0ff}
+      .row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+      button{padding:8px 12px;border:0;border-radius:8px;background:#4f7cff;color:#fff;cursor:pointer}
+      .card{background:#111936;border:1px solid #24345f;border-radius:10px;padding:10px;margin:8px 0}
+      .muted{color:#9fb0df;font-size:12px}
+    </style>
+  </head>
+  <body>
+    <h2>Info Push 验收页（GitHub AI Latest）</h2>
+    <div class="row">
+      <button id="loadFeed">刷新 GitHub AI 项目</button>
+      <button id="triggerMsg">触发一条消息</button>
+      <button id="loadMsg">刷新消息中心</button>
+    </div>
+    <div id="meta" class="muted"></div>
+    <h3>GitHub Feed</h3>
+    <div id="feed"></div>
+    <h3>消息中心</h3>
+    <div id="msg"></div>
+<script>
+const API='http://127.0.0.1:8787';
+const feedEl=document.getElementById('feed');
+const msgEl=document.getElementById('msg');
+const meta=document.getElementById('meta');
+async function loadFeed(){
+  const r=await fetch(`${API}/v1/sources/github/latest?limit=10`); const d=await r.json();
+  meta.textContent=`provider=${d.provider||'-'} live=${String(d.live)} items=${(d.items||[]).length}`;
+  feedEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div>${i.title}</div><div class='muted'>⭐${i.stars??0} · ${i.language||'-'} · ${i.updatedAt||''}</div><a href='${i.url}' target='_blank'>${i.url}</a></div>`).join('')||'<div class="card">暂无数据</div>';
+}
+async function loadMsg(){
+  const r=await fetch(`${API}/v1/messages?limit=20`); const d=await r.json();
+  msgEl.innerHTML=(d.items||[]).map(i=>`<div class='card'><div>${i.title}</div><div class='muted'>${i.createdAt}</div></div>`).join('')||'<div class="card">暂无消息</div>';
+}
+async function trigger(){await fetch(`${API}/v1/push/trigger`,{method:'POST'}); await loadMsg();}
+document.getElementById('loadFeed').onclick=loadFeed;
+document.getElementById('loadMsg').onclick=loadMsg;
+document.getElementById('triggerMsg').onclick=trigger;
+loadFeed();loadMsg();
+</script>
+  </body>
+</html>
