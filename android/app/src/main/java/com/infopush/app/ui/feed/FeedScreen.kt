@@ -21,37 +21,31 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.infopush.app.domain.FeedItem
-import com.infopush.app.link.LinkOpener
 import com.infopush.app.ui.common.readableTime
 
 @Composable
 fun FeedScreen(
     viewModel: FeedViewModel,
-    onGoToSources: () -> Unit
+    onGoToSources: () -> Unit,
+    onOpenArticle: (FeedItem) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val linkOpener = remember { LinkOpener(context, scope = scope) }
 
     Column(
         modifier = Modifier
@@ -140,7 +134,12 @@ fun FeedScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(state.items.take(20), key = { it.id }) { item ->
-                        FeedItemCard(item = item, onOpen = { linkOpener.open(item.url) })
+                        FeedItemCard(
+                            item = item,
+                            isFavorite = state.favoriteItemIds.contains(item.id),
+                            onOpen = { onOpenArticle(item) },
+                            onToggleFavorite = { viewModel.toggleFavorite(item) }
+                        )
                     }
                 }
             }
@@ -220,7 +219,7 @@ private fun SourceSwitcher(
 }
 
 @Composable
-private fun FeedItemCard(item: FeedItem, onOpen: () -> Unit) {
+private fun FeedItemCard(item: FeedItem, isFavorite: Boolean, onOpen: () -> Unit, onToggleFavorite: () -> Unit) {
     ElevatedCard {
         Column(
             modifier = Modifier
@@ -256,11 +255,16 @@ private fun FeedItemCard(item: FeedItem, onOpen: () -> Unit) {
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (item.url.isNotBlank()) {
-                    OutlinedButton(onClick = onOpen) {
-                        Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Box(modifier = Modifier.width(6.dp))
-                        Text("打开原文")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onToggleFavorite) {
+                        Text(if (isFavorite) "已收藏" else "收藏")
+                    }
+                    if (item.url.isNotBlank()) {
+                        OutlinedButton(onClick = onOpen) {
+                            Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Box(modifier = Modifier.width(6.dp))
+                            Text("打开原文")
+                        }
                     }
                 }
             }

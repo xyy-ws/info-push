@@ -243,6 +243,10 @@ class InfoPushRepository(
         }
     }
 
+    fun observeFavoriteItemIds(): Flow<Set<String>> {
+        return database.favoriteDao().observeAll().map { items -> items.map { it.itemId }.toSet() }
+    }
+
     suspend fun refreshFavorites(): RefreshResult {
         return try {
             val response = api.getFavorites()

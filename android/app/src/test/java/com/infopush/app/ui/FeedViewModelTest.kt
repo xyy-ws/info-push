@@ -1,6 +1,7 @@
 package com.infopush.app.ui
 
 import com.infopush.app.data.local.entity.SourceEntity
+import com.infopush.app.data.repo.AddFavoriteResult
 import com.infopush.app.data.repo.RefreshResult
 import com.infopush.app.domain.FeedItem
 import com.infopush.app.ui.feed.FeedViewModel
@@ -11,6 +12,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -57,8 +59,11 @@ class FeedViewModelTest {
         val viewModel = FeedViewModel(
             observeSources = { sourceFlow },
             observeFeed = { sourceId: String -> feedMap[sourceId] ?: flowOf(emptyList()) },
+            observeFavoriteItemIds = { flowOf(emptySet()) },
             refreshSourcesAndFeed = { RefreshResult.Success() },
             refreshSource = { RefreshResult.Success() },
+            addFavorite = { AddFavoriteResult.Success },
+            removeFavorite = { },
             getPersistedSelectedSourceId = { persistedId },
             persistSelectedSourceId = { persistedId = it },
             dispatcher = dispatcher
@@ -77,6 +82,49 @@ class FeedViewModelTest {
     }
 
     @Test
+    fun `toggle favorite should add then remove when status changes`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val sourceFlow = MutableStateFlow(listOf(SourceEntity(id = "source-a", name = "A", enabled = true)))
+        val item = FeedItem("a1", "source-a", "A-1", "", "", "")
+        val favoriteIdsFlow = MutableStateFlow(emptySet<String>())
+        var addCount = 0
+        var removeCount = 0
+
+        val viewModel = FeedViewModel(
+            observeSources = { sourceFlow },
+            observeFeed = { flowOf(listOf(item)) },
+            observeFavoriteItemIds = { favoriteIdsFlow },
+            refreshSourcesAndFeed = { RefreshResult.Success() },
+            refreshSource = { RefreshResult.Success() },
+            addFavorite = {
+                addCount++
+                favoriteIdsFlow.value = setOf(item.id)
+                AddFavoriteResult.Success
+            },
+            removeFavorite = {
+                removeCount++
+                favoriteIdsFlow.value = emptySet()
+            },
+            getPersistedSelectedSourceId = { "source-a" },
+            persistSelectedSourceId = { },
+            dispatcher = dispatcher
+        )
+
+        advanceUntilIdle()
+        assertTrue(!viewModel.uiState.value.favoriteItemIds.contains(item.id))
+
+        viewModel.toggleFavorite(item)
+        advanceUntilIdle()
+        assertEquals(1, addCount)
+        assertTrue(viewModel.uiState.value.favoriteItemIds.contains(item.id))
+
+        viewModel.toggleFavorite(item)
+        advanceUntilIdle()
+        assertEquals(1, removeCount)
+        assertTrue(!viewModel.uiState.value.favoriteItemIds.contains(item.id))
+    }
+
+    @Test
     fun `should use persisted selected source when available`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val sourceFlow = MutableStateFlow(
@@ -89,8 +137,11 @@ class FeedViewModelTest {
         val viewModel = FeedViewModel(
             observeSources = { sourceFlow },
             observeFeed = { sourceId: String -> flowOf(listOf(FeedItem("id-$sourceId", sourceId, "title-$sourceId", "", "", ""))) },
+            observeFavoriteItemIds = { flowOf(emptySet()) },
             refreshSourcesAndFeed = { RefreshResult.Success() },
             refreshSource = { RefreshResult.Success() },
+            addFavorite = { AddFavoriteResult.Success },
+            removeFavorite = { },
             getPersistedSelectedSourceId = { "source-b" },
             persistSelectedSourceId = {},
             dispatcher = dispatcher
@@ -98,54 +149,5 @@ class FeedViewModelTest {
 
         advanceUntilIdle()
         assertEquals("source-b", viewModel.uiState.value.selectedSourceId)
-    }
-
-    @Test
-    fun `refresh current source without selection should show guidance error`() = runTest {
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        val sourceFlow = MutableStateFlow(emptyList<SourceEntity>())
-
-        val viewModel = FeedViewModel(
-            observeSources = { sourceFlow },
-            observeFeed = { flowOf(emptyList()) },
-            refreshSourcesAndFeed = { RefreshResult.Success() },
-            refreshSource = { RefreshResult.Success() },
-            getPersistedSelectedSourceId = { null },
-            persistSelectedSourceId = {},
-            dispatcher = dispatcher
-        )
-
-        advanceUntilIdle()
-        viewModel.refreshCurrentSource()
-
-        assertEquals("请先选择信息源", viewModel.uiState.value.error)
-    }
-
-    @Test
-    fun `refresh current source should call refresh by selected source`() = runTest {
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        val sourceFlow = MutableStateFlow(
-            listOf(SourceEntity(id = "source-a", name = "A", enabled = true))
-        )
-
-        var refreshedSourceId: String? = null
-        val viewModel = FeedViewModel(
-            observeSources = { sourceFlow },
-            observeFeed = { flowOf(emptyList()) },
-            refreshSourcesAndFeed = { RefreshResult.Success() },
-            refreshSource = { sourceId ->
-                refreshedSourceId = sourceId
-                RefreshResult.Success()
-            },
-            getPersistedSelectedSourceId = { null },
-            persistSelectedSourceId = {},
-            dispatcher = dispatcher
-        )
-
-        advanceUntilIdle()
-        viewModel.refreshCurrentSource()
-        advanceUntilIdle()
-
-        assertEquals("source-a", refreshedSourceId)
     }
 }

@@ -1,6 +1,7 @@
 package com.infopush.app.ui.feed
 
 import com.infopush.app.data.local.entity.SourceEntity
+import com.infopush.app.data.repo.AddFavoriteResult
 import com.infopush.app.data.repo.RefreshResult
 import com.infopush.app.domain.FeedItem
 import kotlinx.coroutines.CoroutineDispatcher
@@ -19,6 +20,7 @@ data class FeedUiState(
     val sources: List<SourceEntity> = emptyList(),
     val selectedSourceId: String? = null,
     val items: List<FeedItem> = emptyList(),
+    val favoriteItemIds: Set<String> = emptySet(),
     val error: String? = null,
     val fromMock: Boolean = false,
     val sourceName: String = ""
@@ -27,8 +29,11 @@ data class FeedUiState(
 class FeedViewModel(
     private val observeSources: () -> Flow<List<SourceEntity>>,
     private val observeFeed: (String) -> Flow<List<FeedItem>>,
+    private val observeFavoriteItemIds: () -> Flow<Set<String>>,
     private val refreshSourcesAndFeed: suspend () -> RefreshResult,
     private val refreshSource: suspend (String) -> RefreshResult,
+    private val addFavorite: suspend (FeedItem) -> AddFavoriteResult,
+    private val removeFavorite: suspend (String) -> Unit,
     private val getPersistedSelectedSourceId: suspend () -> String?,
     private val persistSelectedSourceId: suspend (String) -> Unit,
     dispatcher: CoroutineDispatcher = Dispatchers.Main
@@ -42,6 +47,12 @@ class FeedViewModel(
     init {
         scope.launch {
             persistedSelectedSourceIdFlow.value = getPersistedSelectedSourceId()
+        }
+
+        scope.launch {
+            observeFavoriteItemIds().collectLatest { favoriteIds ->
+                _uiState.value = _uiState.value.copy(favoriteItemIds = favoriteIds)
+            }
         }
 
         scope.launch {
@@ -84,6 +95,16 @@ class FeedViewModel(
         _uiState.value = _uiState.value.copy(selectedSourceId = sourceId, sourceName = source.name, items = emptyList())
         selectedSourceIdFlow.value = sourceId
         persistSelection(sourceId)
+    }
+
+    fun toggleFavorite(item: FeedItem) {
+        scope.launch {
+            if (_uiState.value.favoriteItemIds.contains(item.id)) {
+                removeFavorite(item.id)
+            } else {
+                addFavorite(item)
+            }
+        }
     }
 
     fun reload() {
