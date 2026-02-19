@@ -90,35 +90,80 @@ function upsertSourceItem(item) {
   return !exists;
 }
 
+function stripXml(v = '') {
+  return String(v).replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').trim();
+}
+
+function parseRssItems(xml = '', limit = 20) {
+  const blocks = [...String(xml).matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, limit);
+  return blocks.map((m) => {
+    const b = m[1] || '';
+    const title = stripXml((b.match(/<title>([\s\S]*?)<\/title>/i) || [])[1] || 'Untitled');
+    const link = stripXml((b.match(/<link>([\s\S]*?)<\/link>/i) || [])[1] || '');
+    const desc = stripXml((b.match(/<description>([\s\S]*?)<\/description>/i) || [])[1] || '');
+    const pubDate = stripXml((b.match(/<pubDate>([\s\S]*?)<\/pubDate>/i) || [])[1] || '');
+    return { title, url: link, summary: desc || title, publishedAt: pubDate ? new Date(pubDate).toISOString() : nowIso() };
+  }).filter((x) => x.url);
+}
+
+async function fetchSourceItems(source, limit = 20) {
+  const normalizedSource = { enabled: true, fetchMode: 'hybrid', ...source };
+
+  if ((normalizedSource.url || '').includes('github.com') || normalizedSource.type === 'github') {
+    const result = await fetchTrendingAiRepos(limit);
+    return (result.items || []).slice(0, limit).map((it) => ({
+      title: it.title,
+      summary: it.summaryZh || it.summary || '暂无简介',
+      url: it.url,
+      publishedAt: it.updatedAt || nowIso()
+    }));
+  }
+
+  if (normalizedSource.type === 'rss' || /rss|feed\.xml|\.xml($|\?)/i.test(normalizedSource.url || '')) {
+    const resp = await fetch(normalizedSource.url, { headers: { 'User-Agent': 'info-push-app/0.1' } });
+    if (!resp.ok) throw new Error(`rss_status_${resp.status}`);
+    const xml = await resp.text();
+    const items = parseRssItems(xml, limit);
+    if (!items.length) throw new Error('rss_empty');
+    return items;
+  }
+
+  if (normalizedSource.type === 'social') {
+    if (/reddit\.com/i.test(normalizedSource.url || '')) {
+      const rssUrl = normalizedSource.url.includes('.rss') ? normalizedSource.url : `${normalizedSource.url.replace(/\/$/, '')}/.rss`;
+      const resp = await fetch(rssUrl, { headers: { 'User-Agent': 'info-push-app/0.1' } });
+      if (!resp.ok) throw new Error(`social_reddit_status_${resp.status}`);
+      const xml = await resp.text();
+      const items = parseRssItems(xml, limit);
+      if (!items.length) throw new Error('social_reddit_empty');
+      return items;
+    }
+    throw new Error('social_source_unsupported');
+  }
+
+  throw new Error('source_type_unsupported');
+}
+
 async function collectSource(source, limit = 20) {
   const normalizedSource = { enabled: true, fetchMode: 'hybrid', ...source };
   if (!normalizedSource.enabled) return { ok: true, added: 0, items: [] };
 
-  let items = [];
-  if ((normalizedSource.url || '').includes('github.com') || normalizedSource.type === 'github') {
-    const result = await fetchTrendingAiRepos(limit);
-    items = (result.items || []).slice(0, limit).map((it) => ({
-      id: `itm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      sourceId: normalizedSource.id,
-      title: it.title,
-      summary: it.summaryZh || it.summary || '暂无简介',
-      url: it.url,
-      publishedAt: it.updatedAt || nowIso(),
-      createdAt: nowIso()
-    }));
-  } else {
-    items = [
-      {
-        id: `itm-${Date.now()}-seed`,
-        sourceId: normalizedSource.id,
-        title: `${normalizedSource.name} 示例条目`,
-        summary: '该来源已接入，后续将按混合抓取策略获取真实内容。',
-        url: normalizedSource.url,
-        publishedAt: nowIso(),
-        createdAt: nowIso()
-      }
-    ];
+  let rawItems = [];
+  try {
+    rawItems = await fetchSourceItems(normalizedSource, limit);
+  } catch (error) {
+    return { ok: false, error: String(error?.message || error), added: 0, items: [] };
   }
+
+  const items = rawItems.map((it) => ({
+    id: `itm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    sourceId: normalizedSource.id,
+    title: it.title,
+    summary: it.summary || '暂无简介',
+    url: it.url,
+    publishedAt: it.publishedAt || nowIso(),
+    createdAt: nowIso()
+  }));
 
   let added = 0;
   for (const item of items) {
@@ -210,7 +255,24 @@ const server = http.createServer(async (req, res) => {
 
       if (!item.url) return json(res, 400, { ok: false, error: 'url_required' });
       const exists = sources.some((s) => s.url === item.url);
-      if (!exists) sources = [item, ...sources].slice(0, 500);
+      if (!exists) {
+        // validate source on add: must fetch at least one real item
+        try {
+          const probe = await fetchSourceItems(item, 3);
+          if (!Array.isArray(probe) || probe.length === 0) {
+            return json(res, 400, { ok: false, error: 'source_probe_empty', message: '添加失败：该信息源当前无法获取有效条目' });
+          }
+        } catch (e) {
+          return json(res, 400, {
+            ok: false,
+            error: 'source_probe_failed',
+            message: '添加失败：该信息源暂不可用或抓取失败',
+            detail: String(e?.message || e)
+          });
+        }
+
+        sources = [item, ...sources].slice(0, 500);
+      }
       persist();
 
       return json(res, 200, { ok: true, item, duplicated: exists });
