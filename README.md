@@ -12,3 +12,9 @@ MVP scaffold for AI information push app.
 2. M2: ingestion + dedupe + ranking
 3. M3: push dispatch (09:00 / 20:00)
 4. M4: end-to-end verification and release docs
+
+## Data mode (current)
+- Runtime in-memory only (no local disk persistence)
+- Migration via APIs:
+  - `GET /v1/data/export`
+  - `POST /v1/data/import` (`mode: "replace" | "merge"`)

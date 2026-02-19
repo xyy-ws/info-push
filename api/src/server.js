@@ -3,34 +3,7 @@ import { URL } from 'node:url';
 import { ingestAndRank } from './ingestion.js';
 import { fetchLatestAiRepos, fetchTrendingAiRepos, fetchTrendingReposByKeyword } from './github-source.js';
 import { discoverSources } from './ai-discovery.js';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-
-const STATE_PATH = resolve(process.cwd(), 'apps/info-push/api/data/state.json');
-
-function ensureStateDir() {
-  const d = dirname(STATE_PATH);
-  if (!existsSync(d)) mkdirSync(d, { recursive: true });
-}
-
-function loadState() {
-  try {
-    if (!existsSync(STATE_PATH)) return null;
-    const raw = readFileSync(STATE_PATH, 'utf8');
-    return JSON.parse(raw || '{}');
-  } catch {
-    return null;
-  }
-}
-
-function saveState(state) {
-  try {
-    ensureStateDir();
-    writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), 'utf8');
-  } catch {}
-}
-
-const restored = loadState() || {};
+const restored = {};
 
 let feed = ingestAndRank('ai');
 let sources = Array.isArray(restored.sources)
@@ -48,7 +21,7 @@ let preferences = restored.preferences || {
 };
 
 function persist() {
-  saveState({ sources, sourceItems, favorites, preferences });
+  // no-op: 当前版本改为内存态，不做本地持久化
 }
 
 function json(res, status, data) {
@@ -412,6 +385,64 @@ const server = http.createServer(async (req, res) => {
     };
     messages = [item, ...messages].slice(0, 50);
     return json(res, 200, { ok: true, message: item });
+  }
+
+  if (req.method === 'GET' && url.pathname === '/v1/data/export') {
+    return json(res, 200, {
+      exportedAt: nowIso(),
+      version: 1,
+      data: { sources, sourceItems, favorites, preferences, messages }
+    });
+  }
+
+  if (req.method === 'POST' && url.pathname === '/v1/data/import') {
+    try {
+      const payload = await readJsonBody(req);
+      const mode = payload?.mode === 'merge' ? 'merge' : 'replace';
+      const incoming = payload?.data || {};
+
+      if (mode === 'replace') {
+        sources = Array.isArray(incoming.sources) ? incoming.sources : [];
+        sourceItems = Array.isArray(incoming.sourceItems) ? incoming.sourceItems : [];
+        favorites = Array.isArray(incoming.favorites) ? incoming.favorites : [];
+        messages = Array.isArray(incoming.messages) ? incoming.messages : [];
+        preferences = incoming.preferences && typeof incoming.preferences === 'object'
+          ? incoming.preferences
+          : preferences;
+      } else {
+        const mergeBy = (base, extra, key) => {
+          const map = new Map(base.map((x) => [x?.[key], x]));
+          for (const item of extra) {
+            const k = item?.[key];
+            if (!k) continue;
+            map.set(k, { ...(map.get(k) || {}), ...item });
+          }
+          return [...map.values()];
+        };
+
+        sources = mergeBy(Array.isArray(sources) ? sources : [], Array.isArray(incoming.sources) ? incoming.sources : [], 'id');
+        sourceItems = mergeBy(Array.isArray(sourceItems) ? sourceItems : [], Array.isArray(incoming.sourceItems) ? incoming.sourceItems : [], 'id');
+        favorites = mergeBy(Array.isArray(favorites) ? favorites : [], Array.isArray(incoming.favorites) ? incoming.favorites : [], 'id');
+        messages = mergeBy(Array.isArray(messages) ? messages : [], Array.isArray(incoming.messages) ? incoming.messages : [], 'id').slice(0, 200);
+        if (incoming.preferences && typeof incoming.preferences === 'object') {
+          preferences = { ...preferences, ...incoming.preferences };
+        }
+      }
+
+      persist();
+      return json(res, 200, {
+        ok: true,
+        mode,
+        counts: {
+          sources: sources.length,
+          sourceItems: sourceItems.length,
+          favorites: favorites.length,
+          messages: messages.length
+        }
+      });
+    } catch {
+      return json(res, 400, { ok: false, error: 'invalid_json' });
+    }
   }
 
   return json(res, 404, { ok: false, error: 'not_found' });
