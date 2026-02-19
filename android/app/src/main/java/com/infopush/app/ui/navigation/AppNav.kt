@@ -57,7 +57,9 @@ fun AppNav() {
             refreshSources = { repository.refreshSourcesAndFeed() },
             addSource = { draft: SourceDraft -> repository.addSource(draft.name, draft.url, draft.type, draft.tags) },
             setSourceEnabled = { sourceId, enabled -> repository.setSourceEnabled(sourceId, enabled) },
-            deleteSource = { sourceId -> repository.deleteSource(sourceId) }
+            deleteSource = { sourceId -> repository.deleteSource(sourceId) },
+            discoverSources = { keyword -> repository.searchAiSources(keyword) },
+            addAiSourceToLocal = { source -> repository.addAiSourceToLocal(source) }
         )
     }
     val favoritesViewModel = remember {

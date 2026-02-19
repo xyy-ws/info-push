@@ -50,10 +50,14 @@ data class MessageDto(
     val createdAt: String? = null
 )
 
+data class FavoriteExportDto(
+    val itemId: String = ""
+)
+
 data class DataExportPayload(
     val sources: List<SourceDto> = emptyList(),
     val sourceItems: List<SourceItemDto> = emptyList(),
-    val favorites: List<SourceItemDto> = emptyList(),
+    val favorites: List<FavoriteExportDto> = emptyList(),
     val preferences: Map<String, String> = emptyMap(),
     val messages: List<MessageDto> = emptyList()
 )
@@ -81,4 +85,19 @@ data class DataImportResponse(
     val mode: String? = null,
     val counts: DataImportCounts = DataImportCounts(),
     val error: String? = null
+)
+
+data class AiDiscoverSourcesRequest(
+    val keyword: String = ""
+)
+
+data class AiDiscoveredSourceDto(
+    val name: String = "",
+    val url: String = "",
+    val type: String? = null,
+    val reason: String? = null
+)
+
+data class AiDiscoverSourcesResponse(
+    val sources: List<AiDiscoveredSourceDto> = emptyList()
 )

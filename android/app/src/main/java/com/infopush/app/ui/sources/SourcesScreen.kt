@@ -27,6 +27,7 @@ fun SourcesScreen(
     onGoToFavorites: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
+    val aiState by viewModel.aiSearchState.collectAsState()
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("rss") }
@@ -38,6 +39,29 @@ fun SourcesScreen(
         horizontalAlignment = Alignment.Start
     ) {
         Text("信息源")
+
+        OutlinedTextField(
+            value = aiState.keyword,
+            onValueChange = viewModel::updateKeyword,
+            label = { Text("AI 搜索关键词") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Button(onClick = viewModel::searchAiSources) { Text("AI 搜索信息源") }
+        if (aiState.loading) Text("AI 搜索中...")
+        if (aiState.empty) Text("未找到候选信息源")
+        aiState.error?.let { Text(it) }
+        aiState.results.forEach { item ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("${item.name} (${item.type})")
+                    Text(item.url)
+                    Text("推荐理由: ${item.reason.ifBlank { "-" }}")
+                }
+                Button(onClick = { viewModel.addDiscoveredSource(item) }) {
+                    Text("一键添加")
+                }
+            }
+        }
 
         OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("名称") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("URL") }, modifier = Modifier.fillMaxWidth())

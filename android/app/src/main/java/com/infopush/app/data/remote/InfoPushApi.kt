@@ -1,5 +1,7 @@
 package com.infopush.app.data.remote
 
+import com.infopush.app.data.remote.model.AiDiscoverSourcesRequest
+import com.infopush.app.data.remote.model.AiDiscoverSourcesResponse
 import com.infopush.app.data.remote.model.DataExportResponse
 import com.infopush.app.data.remote.model.DataImportRequest
 import com.infopush.app.data.remote.model.DataImportResponse
@@ -26,4 +28,7 @@ interface InfoPushApi {
 
     @POST("v1/data/import")
     suspend fun importData(@Body request: DataImportRequest): DataImportResponse
+
+    @POST("v1/ai/discover-sources")
+    suspend fun discoverSources(@Body request: AiDiscoverSourcesRequest): AiDiscoverSourcesResponse
 }

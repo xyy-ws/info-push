@@ -1,6 +1,8 @@
 package com.infopush.app.ui
 
 import com.infopush.app.data.local.entity.SourceEntity
+import com.infopush.app.data.repo.AddSourceResult
+import com.infopush.app.data.repo.AiDiscoveredSource
 import com.infopush.app.data.repo.RefreshResult
 import com.infopush.app.ui.sources.SourceDraft
 import com.infopush.app.ui.sources.SourcesViewModel
@@ -28,6 +30,8 @@ class SourcesViewModelTest {
             addSource = { added = it },
             setSourceEnabled = { _, _ -> },
             deleteSource = {},
+            discoverSources = { emptyList() },
+            addAiSourceToLocal = { AddSourceResult.Success },
             dispatcher = dispatcher
         )
 
@@ -49,6 +53,8 @@ class SourcesViewModelTest {
             addSource = {},
             setSourceEnabled = { _, _ -> },
             deleteSource = {},
+            discoverSources = { emptyList() },
+            addAiSourceToLocal = { AddSourceResult.Success },
             dispatcher = dispatcher
         )
 
@@ -72,6 +78,8 @@ class SourcesViewModelTest {
             addSource = {},
             setSourceEnabled = { _, enabled -> toggledEnabled = enabled },
             deleteSource = {},
+            discoverSources = { emptyList() },
+            addAiSourceToLocal = { AddSourceResult.Success },
             dispatcher = dispatcher
         )
 
@@ -79,5 +87,32 @@ class SourcesViewModelTest {
         advanceUntilIdle()
 
         assertTrue(toggledEnabled == false)
+    }
+
+    @Test
+    fun `search ai sources success should update results`() = runTest {
+        val sourceFlow = MutableStateFlow(emptyList<SourceEntity>())
+        val dispatcher = StandardTestDispatcher(testScheduler)
+
+        val viewModel = SourcesViewModel(
+            observeSources = { sourceFlow },
+            refreshSources = { RefreshResult.Success(fromMock = false) },
+            addSource = {},
+            setSourceEnabled = { _, _ -> },
+            deleteSource = {},
+            discoverSources = {
+                listOf(AiDiscoveredSource(name = "Tech Daily", url = "https://x.com/rss", type = "rss", reason = "matches keyword"))
+            },
+            addAiSourceToLocal = { AddSourceResult.Success },
+            dispatcher = dispatcher
+        )
+
+        viewModel.updateKeyword("tech")
+        viewModel.searchAiSources()
+        advanceUntilIdle()
+
+        assertEquals(1, viewModel.aiSearchState.value.results.size)
+        assertEquals("Tech Daily", viewModel.aiSearchState.value.results.first().name)
+        assertFalse(viewModel.aiSearchState.value.loading)
     }
 }

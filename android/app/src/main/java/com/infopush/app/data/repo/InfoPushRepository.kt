@@ -6,6 +6,7 @@ import com.infopush.app.data.local.entity.MessageEntity
 import com.infopush.app.data.local.entity.SourceEntity
 import com.infopush.app.data.local.entity.SourceItemEntity
 import com.infopush.app.data.remote.InfoPushApi
+import com.infopush.app.data.remote.model.AiDiscoverSourcesRequest
 import com.infopush.app.data.remote.model.DataExportResponse
 import com.infopush.app.data.remote.model.DataImportRequest
 import com.infopush.app.data.remote.model.DataImportResponse
@@ -37,6 +38,38 @@ class InfoPushRepository(
                 enabled = true
             )
         )
+    }
+
+    suspend fun searchAiSources(keyword: String): List<AiDiscoveredSource> {
+        val normalized = keyword.trim()
+        if (normalized.isBlank()) return emptyList()
+        return api.discoverSources(AiDiscoverSourcesRequest(keyword = normalized)).sources.map {
+            AiDiscoveredSource(
+                name = it.name,
+                url = it.url,
+                type = it.type.orEmpty().ifBlank { "rss" },
+                reason = it.reason.orEmpty()
+            )
+        }
+    }
+
+    suspend fun addAiSourceToLocal(candidate: AiDiscoveredSource): AddSourceResult {
+        val normalizedUrl = candidate.url.trim()
+        if (normalizedUrl.isBlank()) return AddSourceResult.Invalid("URL 不能为空")
+        val duplicated = database.sourceDao().getSourceByUrl(normalizedUrl) != null
+        if (duplicated) return AddSourceResult.Duplicated
+
+        database.sourceDao().upsertSource(
+            SourceEntity(
+                id = "local-${UUID.randomUUID()}",
+                name = candidate.name.trim().ifBlank { normalizedUrl },
+                url = normalizedUrl,
+                type = candidate.type.trim().ifBlank { "rss" },
+                tags = candidate.reason.trim(),
+                enabled = true
+            )
+        )
+        return AddSourceResult.Success
     }
 
     suspend fun setSourceEnabled(sourceId: String, enabled: Boolean) {
@@ -288,6 +321,19 @@ private class LocalStore(
 sealed interface RefreshResult {
     data class Success(val fromMock: Boolean = false) : RefreshResult
     data class Error(val message: String) : RefreshResult
+}
+
+data class AiDiscoveredSource(
+    val name: String,
+    val url: String,
+    val type: String,
+    val reason: String
+)
+
+sealed interface AddSourceResult {
+    object Success : AddSourceResult
+    object Duplicated : AddSourceResult
+    data class Invalid(val message: String) : AddSourceResult
 }
 
 enum class AddFavoriteResult {

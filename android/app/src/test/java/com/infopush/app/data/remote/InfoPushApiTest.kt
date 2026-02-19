@@ -90,4 +90,27 @@ class InfoPushApiTest {
         assertEquals("dark", response.data.preferences["theme"])
         assertEquals("i1", response.data.favorites.first().itemId)
     }
+
+    @Test
+    fun `discover sources posts keyword and parses list`() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "sources": [
+                    {"name":"Tech","url":"https://example.com/rss","type":"rss","reason":"match"}
+                  ]
+                }
+                """.trimIndent()
+            )
+        )
+
+        val response = api.discoverSources(com.infopush.app.data.remote.model.AiDiscoverSourcesRequest(keyword = "tech"))
+        val request = server.takeRequest()
+
+        assertEquals("POST", request.method)
+        assertEquals("/v1/ai/discover-sources", request.path)
+        assertEquals(1, response.sources.size)
+        assertEquals("Tech", response.sources.first().name)
+    }
 }

@@ -6,6 +6,7 @@ import com.infopush.app.data.local.InfoPushDatabase
 import com.infopush.app.data.local.entity.SourceEntity
 import com.infopush.app.data.local.entity.SourceItemEntity
 import com.infopush.app.data.remote.InfoPushApi
+import com.infopush.app.data.remote.model.AiDiscoverSourcesResponse
 import com.infopush.app.data.remote.model.DataExportResponse
 import com.infopush.app.data.remote.model.DataImportRequest
 import com.infopush.app.data.remote.model.DataImportResponse
@@ -125,6 +126,24 @@ class InfoPushRepositoryTest {
         assertEquals(2, fakeApi.addFavoriteRequests.size)
     }
 
+    @Test
+    fun addAiSourceToLocal_shouldDeduplicateByUrl() = runTest {
+        val repository = InfoPushRepository(db, FakeInfoPushApi())
+        val candidate = AiDiscoveredSource(
+            name = "Tech Feed",
+            url = "https://example.com/rss",
+            type = "rss",
+            reason = "AI recommend"
+        )
+
+        val first = repository.addAiSourceToLocal(candidate)
+        val second = repository.addAiSourceToLocal(candidate)
+
+        assertEquals(AddSourceResult.Success, first)
+        assertEquals(AddSourceResult.Duplicated, second)
+        assertEquals(1, db.sourceDao().listSources().count { it.url == "https://example.com/rss" })
+    }
+
     private class FakeInfoPushApi(
         private val homeSourcesResponse: HomeSourcesResponse = HomeSourcesResponse(),
         private val favoriteResponses: MutableList<FavoriteResponse> = mutableListOf(FavoriteResponse(ok = true))
@@ -147,5 +166,9 @@ class InfoPushRepositoryTest {
         override suspend fun exportData(): DataExportResponse = DataExportResponse()
 
         override suspend fun importData(request: DataImportRequest): DataImportResponse = DataImportResponse(ok = true)
+
+        override suspend fun discoverSources(request: com.infopush.app.data.remote.model.AiDiscoverSourcesRequest): AiDiscoverSourcesResponse {
+            return AiDiscoverSourcesResponse()
+        }
     }
 }

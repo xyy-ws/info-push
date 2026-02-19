@@ -33,6 +33,9 @@ interface SourceDao {
     @Query("SELECT * FROM sources WHERE id = :sourceId LIMIT 1")
     suspend fun getSourceById(sourceId: String): SourceEntity?
 
+    @Query("SELECT * FROM sources WHERE url = :url LIMIT 1")
+    suspend fun getSourceByUrl(url: String): SourceEntity?
+
     @Query("DELETE FROM sources WHERE id = :sourceId")
     suspend fun deleteSource(sourceId: String)
 
