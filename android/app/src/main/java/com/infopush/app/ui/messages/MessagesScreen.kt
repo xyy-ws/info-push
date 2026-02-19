@@ -58,6 +58,7 @@ fun MessagesScreen(
         FeedbackSection(
             loading = state.loading,
             error = state.error?.ifBlank { "加载失败，请稍后重试" },
+            notice = null,
             isEmpty = state.items.isEmpty(),
             emptyText = "暂无消息内容",
             loadingText = "正在加载消息..."

@@ -4,5 +4,6 @@ data class ListUiState<T>(
     val loading: Boolean = true,
     val items: List<T> = emptyList(),
     val error: String? = null,
+    val notice: String? = null,
     val fromMock: Boolean = false
 )

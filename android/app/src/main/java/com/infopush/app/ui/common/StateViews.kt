@@ -39,9 +39,20 @@ fun ErrorState(text: String) {
 }
 
 @Composable
+fun NoticeState(text: String) {
+    Text(
+        text = text,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.primary
+    )
+}
+
+@Composable
 fun FeedbackSection(
     loading: Boolean,
     error: String?,
+    notice: String?,
     isEmpty: Boolean,
     emptyText: String,
     loadingText: String = "加载中..."
@@ -50,6 +61,7 @@ fun FeedbackSection(
         when {
             loading -> LoadingState(loadingText)
             error != null -> ErrorState(error)
+            notice != null -> NoticeState(notice)
             isEmpty -> EmptyState(emptyText)
         }
     }

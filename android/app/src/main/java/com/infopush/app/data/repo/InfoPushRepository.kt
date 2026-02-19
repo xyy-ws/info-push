@@ -21,6 +21,7 @@ import com.infopush.app.domain.InfoMessage
 import com.infopush.app.link.LinkNormalizer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import retrofit2.HttpException
 import java.util.UUID
 
 class InfoPushRepository(
@@ -33,17 +34,47 @@ class InfoPushRepository(
     }
     fun observeSources(): Flow<List<SourceEntity>> = database.sourceDao().observeSources()
 
-    suspend fun addSource(name: String, url: String, type: String, tags: String) {
-        database.sourceDao().upsertSource(
-            SourceEntity(
-                id = "local-${UUID.randomUUID()}",
-                name = name.trim(),
-                url = url.trim(),
-                type = type.trim().ifBlank { "rss" },
-                tags = tags.trim(),
-                enabled = true
+    suspend fun addSource(name: String, url: String, type: String, tags: String): ManualAddSourceResult {
+        val trimmedName = name.trim()
+        val trimmedUrl = url.trim()
+        val trimmedType = type.trim().ifBlank { "rss" }
+        val trimmedTags = tags.trim()
+
+        if (trimmedName.isBlank() || trimmedUrl.isBlank()) {
+            return ManualAddSourceResult.Error("名称和 URL 不能为空")
+        }
+
+        return try {
+            val createResp = api.createSource(
+                CreateSourceRequest(
+                    name = trimmedName,
+                    url = trimmedUrl,
+                    type = trimmedType,
+                    reason = trimmedTags.ifBlank { null },
+                    enabled = true
+                )
             )
-        )
+            val backendId = createResp.item?.id
+            if (!createResp.ok || backendId.isNullOrBlank()) {
+                val reason = createResp.message ?: createResp.error ?: "信息源测试失败"
+                return ManualAddSourceResult.Error(reason)
+            }
+
+            database.sourceDao().upsertSource(
+                SourceEntity(
+                    id = "local-${UUID.randomUUID()}",
+                    name = trimmedName,
+                    url = trimmedUrl,
+                    type = trimmedType,
+                    tags = trimmedTags,
+                    enabled = true,
+                    backendSourceId = backendId
+                )
+            )
+            ManualAddSourceResult.Success
+        } catch (t: Throwable) {
+            ManualAddSourceResult.Error(parseBackendErrorMessage(t))
+        }
     }
 
     suspend fun searchAiSources(keyword: String): List<AiDiscoveredSource> {
@@ -381,6 +412,16 @@ class InfoPushRepository(
         database.messageDao().upsertAll(MockData.messages)
         return RefreshResult.Success(fromMock = true)
     }
+
+    private fun parseBackendErrorMessage(t: Throwable): String {
+        if (t is HttpException) {
+            val body = t.response()?.errorBody()?.string().orEmpty()
+            val rawMessage = "\"message\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(body)?.groupValues?.getOrNull(1)
+            val rawError = "\"error\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(body)?.groupValues?.getOrNull(1)
+            return rawMessage ?: rawError ?: t.message().ifBlank { "信息源测试失败" }
+        }
+        return t.message ?: "信息源测试失败"
+    }
 }
 
 private class LocalStore(
@@ -430,6 +471,11 @@ sealed interface AddSourceResult {
     object Success : AddSourceResult
     object Duplicated : AddSourceResult
     data class Invalid(val message: String) : AddSourceResult
+}
+
+sealed interface ManualAddSourceResult {
+    object Success : ManualAddSourceResult
+    data class Error(val message: String) : ManualAddSourceResult
 }
 
 enum class AddFavoriteResult {

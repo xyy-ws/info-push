@@ -73,6 +73,7 @@ fun FavoritesScreen(
         FeedbackSection(
             loading = state.loading,
             error = state.error?.ifBlank { "加载失败，请稍后重试" },
+            notice = null,
             isEmpty = state.items.isEmpty(),
             emptyText = "暂无收藏内容",
             loadingText = "正在加载收藏..."

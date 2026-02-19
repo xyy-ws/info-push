@@ -3,6 +3,7 @@ package com.infopush.app.ui.sources
 import com.infopush.app.data.local.entity.SourceEntity
 import com.infopush.app.data.repo.AddSourceResult
 import com.infopush.app.data.repo.AiDiscoveredSource
+import com.infopush.app.data.repo.ManualAddSourceResult
 import com.infopush.app.data.repo.RefreshResult
 import com.infopush.app.ui.common.ListUiState
 import kotlinx.coroutines.CoroutineDispatcher
@@ -35,7 +36,7 @@ data class AiSearchUiState(
 class SourcesViewModel(
     private val observeSources: () -> Flow<List<SourceEntity>>,
     private val refreshSources: suspend () -> RefreshResult,
-    private val addSource: suspend (SourceDraft) -> Unit,
+    private val addSource: suspend (SourceDraft) -> ManualAddSourceResult,
     private val setSourceEnabled: suspend (sourceId: String, enabled: Boolean) -> Unit,
     private val deleteSource: suspend (sourceId: String) -> Unit,
     private val discoverSources: suspend (keyword: String) -> List<AiDiscoveredSource>,
@@ -145,11 +146,19 @@ class SourcesViewModel(
 
     fun createSource(draft: SourceDraft) {
         if (draft.name.isBlank() || draft.url.isBlank()) {
-            _uiState.value = _uiState.value.copy(error = "名称和 URL 不能为空")
+            _uiState.value = _uiState.value.copy(error = "名称和 URL 不能为空", notice = null)
             return
         }
         scope.launch {
-            addSource(draft)
+            when (val result = addSource(draft)) {
+                ManualAddSourceResult.Success -> {
+                    _uiState.value = _uiState.value.copy(error = null, notice = "测试通过并已添加")
+                }
+
+                is ManualAddSourceResult.Error -> {
+                    _uiState.value = _uiState.value.copy(error = result.message, notice = null)
+                }
+            }
         }
     }
 

@@ -128,6 +128,7 @@ fun SourcesScreen(
             FeedbackSection(
                 loading = state.loading,
                 error = state.error,
+                notice = state.notice,
                 isEmpty = filteredSources.isEmpty(),
                 emptyText = if (state.items.isEmpty()) "暂无信息源" else "筛选后无匹配信息源"
             )

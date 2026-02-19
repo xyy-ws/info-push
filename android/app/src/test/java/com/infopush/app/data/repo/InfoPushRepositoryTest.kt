@@ -150,6 +150,41 @@ class InfoPushRepositoryTest {
     }
 
     @Test
+    fun addSource_backendFailure_shouldNotWriteLocalAndExposeMessage() = runTest {
+        val repository = InfoPushRepository(
+            db,
+            FakeInfoPushApi(
+                createSourceResponse = CreateSourceResponse(ok = false, message = "403 forbidden")
+            )
+        )
+
+        val result = repository.addSource("Tech", "https://example.com/rss", "rss", "")
+
+        assertEquals(ManualAddSourceResult.Error("403 forbidden"), result)
+        assertTrue(db.sourceDao().listSources().isEmpty())
+    }
+
+    @Test
+    fun addSource_backendSuccess_shouldWriteLocalWithBackendSourceId() = runTest {
+        val repository = InfoPushRepository(
+            db,
+            FakeInfoPushApi(
+                createSourceResponse = CreateSourceResponse(
+                    ok = true,
+                    item = SourceDto(id = "remote-123", name = "Tech", url = "https://example.com/rss")
+                )
+            )
+        )
+
+        val result = repository.addSource("Tech", "https://example.com/rss", "rss", "kotlin")
+
+        assertEquals(ManualAddSourceResult.Success, result)
+        val local = db.sourceDao().listSources()
+        assertEquals(1, local.size)
+        assertEquals("remote-123", local.first().backendSourceId)
+    }
+
+    @Test
     fun refreshSource_shouldRegisterCollectAndWriteBackItems() = runTest {
         val fakeApi = FakeInfoPushApi(
             sourceListResponse = SourceListResponse(items = emptyList()),

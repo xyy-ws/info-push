@@ -3,6 +3,7 @@ package com.infopush.app.ui
 import com.infopush.app.data.local.entity.SourceEntity
 import com.infopush.app.data.repo.AddSourceResult
 import com.infopush.app.data.repo.AiDiscoveredSource
+import com.infopush.app.data.repo.ManualAddSourceResult
 import com.infopush.app.data.repo.RefreshResult
 import com.infopush.app.ui.sources.SourceDraft
 import com.infopush.app.ui.sources.SourcesViewModel
@@ -19,15 +20,14 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SourcesViewModelTest {
     @Test
-    fun `create source should call addSource`() = runTest {
+    fun `create source success should expose success notice`() = runTest {
         val sourceFlow = MutableStateFlow(emptyList<SourceEntity>())
         val dispatcher = StandardTestDispatcher(testScheduler)
-        var added: SourceDraft? = null
 
         val viewModel = SourcesViewModel(
             observeSources = { sourceFlow },
             refreshSources = { RefreshResult.Success() },
-            addSource = { added = it },
+            addSource = { ManualAddSourceResult.Success },
             setSourceEnabled = { _, _ -> },
             deleteSource = {},
             discoverSources = { emptyList() },
@@ -38,8 +38,31 @@ class SourcesViewModelTest {
         viewModel.createSource(SourceDraft(name = "Tech", url = "https://a.com", type = "rss", tags = "kotlin"))
         advanceUntilIdle()
 
-        assertEquals("Tech", added?.name)
-        assertEquals("https://a.com", added?.url)
+        assertEquals("测试通过并已添加", viewModel.uiState.value.notice)
+        assertEquals(null, viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun `create source backend error should expose backend message`() = runTest {
+        val sourceFlow = MutableStateFlow(emptyList<SourceEntity>())
+        val dispatcher = StandardTestDispatcher(testScheduler)
+
+        val viewModel = SourcesViewModel(
+            observeSources = { sourceFlow },
+            refreshSources = { RefreshResult.Success() },
+            addSource = { ManualAddSourceResult.Error("403 forbidden") },
+            setSourceEnabled = { _, _ -> },
+            deleteSource = {},
+            discoverSources = { emptyList() },
+            addAiSourceToLocal = { AddSourceResult.Success },
+            dispatcher = dispatcher
+        )
+
+        viewModel.createSource(SourceDraft(name = "Tech", url = "https://a.com", type = "rss", tags = "kotlin"))
+        advanceUntilIdle()
+
+        assertEquals("403 forbidden", viewModel.uiState.value.error)
+        assertEquals(null, viewModel.uiState.value.notice)
     }
 
     @Test
@@ -50,7 +73,7 @@ class SourcesViewModelTest {
         val viewModel = SourcesViewModel(
             observeSources = { sourceFlow },
             refreshSources = { RefreshResult.Error("network down") },
-            addSource = {},
+            addSource = { ManualAddSourceResult.Success },
             setSourceEnabled = { _, _ -> },
             deleteSource = {},
             discoverSources = { emptyList() },
@@ -75,7 +98,7 @@ class SourcesViewModelTest {
         val viewModel = SourcesViewModel(
             observeSources = { sourceFlow },
             refreshSources = { RefreshResult.Success(fromMock = true) },
-            addSource = {},
+            addSource = { ManualAddSourceResult.Success },
             setSourceEnabled = { _, enabled -> toggledEnabled = enabled },
             deleteSource = {},
             discoverSources = { emptyList() },
@@ -97,7 +120,7 @@ class SourcesViewModelTest {
         val viewModel = SourcesViewModel(
             observeSources = { sourceFlow },
             refreshSources = { RefreshResult.Success(fromMock = false) },
-            addSource = {},
+            addSource = { ManualAddSourceResult.Success },
             setSourceEnabled = { _, _ -> },
             deleteSource = {},
             discoverSources = {
@@ -125,7 +148,7 @@ class SourcesViewModelTest {
         val viewModel = SourcesViewModel(
             observeSources = { sourceFlow },
             refreshSources = { RefreshResult.Success(fromMock = false) },
-            addSource = {},
+            addSource = { ManualAddSourceResult.Success },
             setSourceEnabled = { _, _ -> },
             deleteSource = {},
             discoverSources = { emptyList() },
