@@ -12,18 +12,18 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 
 interface InfoPushApi {
-    @GET("/v1/sources/home")
+    @GET("v1/sources/home")
     suspend fun getHomeSources(): HomeSourcesResponse
 
-    @GET("/v1/favorites")
+    @GET("v1/favorites")
     suspend fun getFavorites(): FavoritesResponse
 
-    @POST("/v1/favorites")
+    @POST("v1/favorites")
     suspend fun addFavorite(@Body request: FavoriteRequest): FavoriteResponse
 
-    @GET("/v1/data/export")
+    @GET("v1/data/export")
     suspend fun exportData(): DataExportResponse
 
-    @POST("/v1/data/import")
+    @POST("v1/data/import")
     suspend fun importData(@Body request: DataImportRequest): DataImportResponse
 }
