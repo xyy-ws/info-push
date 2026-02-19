@@ -1,4 +1,4 @@
-package com.infopush.app.ui.messages
+package com.infopush.app.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,16 +12,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun MessagesScreen(onGoToSettings: () -> Unit) {
+fun SettingsScreen(
+    onExportData: () -> Unit,
+    onImportReplace: () -> Unit,
+    onImportMerge: () -> Unit
+) {
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("消息中心")
-        Text("系统通知与提醒会显示在这里")
-        Button(onClick = onGoToSettings) {
-            Text("去设置")
-        }
+        Text("设置")
+        Button(onClick = onExportData) { Text("导出数据") }
+        Button(onClick = onImportReplace) { Text("导入数据（replace）") }
+        Button(onClick = onImportMerge) { Text("导入数据（merge）") }
     }
 }

@@ -14,12 +14,14 @@ import com.infopush.app.ui.favorites.UiEvent
 import com.infopush.app.ui.feed.FeedScreen
 import com.infopush.app.ui.messages.MessagesScreen
 import com.infopush.app.ui.sources.SourcesScreen
+import com.infopush.app.ui.settings.SettingsScreen
 
 object AppRoute {
     const val FEED = "feed"
     const val SOURCES = "sources"
     const val FAVORITES = "favorites"
     const val MESSAGES = "messages"
+    const val SETTINGS = "settings"
 }
 
 @Composable
@@ -50,7 +52,14 @@ fun AppNav() {
             )
         }
         composable(AppRoute.MESSAGES) {
-            MessagesScreen()
+            MessagesScreen(onGoToSettings = { navController.navigate(AppRoute.SETTINGS) })
+        }
+        composable(AppRoute.SETTINGS) {
+            SettingsScreen(
+                onExportData = {},
+                onImportReplace = {},
+                onImportMerge = {}
+            )
         }
     }
 }
